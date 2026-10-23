@@ -137,17 +137,28 @@ def _compact(d: dict) -> dict:
 # --------------------------------------------------------------------------- IEEE formatting
 
 
+_SUFFIX = re.compile(r"^(?:Jr\.?|Sr\.?|II|III|IV|V)$")
+
+
 def _initials(name: str) -> str:
     name = name.strip()
     if not name:
         return ""
+    suffix = ""
     if "," in name:
-        last, first = [p.strip() for p in name.split(",", 1)]
+        parts = [p.strip() for p in name.split(",")]
+        if len(parts) >= 3 and _SUFFIX.match(parts[-1]):
+            suffix = parts.pop()
+        last, first = parts[0], " ".join(parts[1:])
     else:
         parts = name.split()
+        if len(parts) > 2 and _SUFFIX.match(parts[-1]):
+            suffix = parts.pop()
         if len(parts) == 1:
-            return parts[0]
+            return (parts[0] + (" " + suffix if suffix else "")).strip()
         last, first = parts[-1], " ".join(parts[:-1])
+    if suffix:
+        last = f"{last} {suffix}"
     inits = []
     for part in re.split(r"\s+", first):
         if not part:
@@ -238,6 +249,12 @@ def format_ieee(e: dict) -> list[Segment]:
             tail.append(date)
         add((", " + ", ".join(tail)) if tail else "")
         add(".")
+    elif kind in ("preprint", "arxiv"):
+        add(f'{lead}"{title}," ')
+        ident = e.get("eprint") or e.get("number") or ""
+        archive = e.get("publisher") or ("arXiv" if "arxiv" in str(ident).lower() or kind == "arxiv" else "")
+        where = f"{archive} preprint {ident}".replace("preprint arXiv:", "preprint arXiv:").strip() if (archive or ident) else "Preprint"
+        add(where + (f", {date}." if date else "."))
     elif kind in ("web", "online", "lecture", "datasheet", "manual", "report", "thesis", "standard"):
         add(f'{lead}"{title},"')
         descr = {

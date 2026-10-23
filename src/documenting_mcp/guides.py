@@ -17,7 +17,7 @@ intake or date in the body.
 | `**Term** - description` inside a bullet | The "bold term - definition" style |
 | `$V_{out} = IR$` | Inline Word equation (LaTeX syntax) |
 | `$$V_{out} = -V_{ref}\\sum_{i=1}^{n} b_{n-i}\\,2^{-i}$$` on its own line | Centred display equation |
-| Pipe tables (`| A | B |` + `|---|---|`) | Grid table. Optional `Table: caption` line under it |
+| Pipe tables (`| A | B |` + `|---|---|`) | Plain Word table. Optional `Table: caption` line under it. Always use pipe tables: grid tables (`+---+`) break if one `|` is out of line |
 | `![caption](path/to/image.png){width=80%}` on its own line | Centred figure. width may be %, in, cm |
 | Fenced code block (```` ```c ````) | Monospace code listing in a light box |
 | `<!-- pagebreak -->` | Page break |
@@ -99,6 +99,13 @@ series:
   rendered as plain Word tables (thin black grid, bold header row, no colours).
 
 ## Work with the student, not for them
+
+- **Get the student's own input.** The plan lists every section with a "get my input here" tick box.
+  For each ticked section, call `ask_section_input` *before writing it*, ask the student those
+  questions, and store their answer with `save_section_input`. Then write the section around their
+  points: keep their numbers, the problems they hit, their reasoning and conclusions, and their
+  phrasing where it reads well. Never invent measurements, observations or opinions. If something
+  is missing, ask.
 
 - Never write the whole document in one go. Use the plan from `start_assignment` and `save_plan`.
 - After each step, show the result and ask before continuing.

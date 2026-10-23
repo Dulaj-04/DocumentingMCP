@@ -26,6 +26,7 @@ EE_WORDS = set(
     ladder vref vout vin iout pid feedforward overshoot undershoot bode nyquist laplace fourier z-transform
     transient transients steady-state eigenvalue eigenvalues wavelength bandwidth passband stopband
     kirchhoff kirchhoff's ohm's ampere's faraday's lenz's lorentz kdu
+    preprint arxiv gauss seidel raphson jacobian iterative discretisation discretization nodal
     """.split()
 )
 COMMON_TYPOS = {
@@ -80,16 +81,23 @@ def _american(word: str) -> list[str]:
     return forms
 
 
+_REFS_TITLE = re.compile(r"^(?:\d+(?:\.\d+)*\.?\s+)?(references|bibliography|reference list)$", re.I)
+_URLISH = re.compile(r"(https?://\S+|www\.\S+|\bdoi:\s*\S+|\b10\.\d{4,9}/\S+|\S+@\S+\.\w+)", re.I)
+
+
 def _body_paragraphs(path: Path) -> list[tuple[str, str]]:
-    """(style, text) for each paragraph after the cover page."""
+    """(style, text) for each paragraph after the cover page, excluding the reference list."""
     d = docx.Document(str(path))
     out, started = [], False
     for p in d.paragraphs:
         name = p.style.name if p.style is not None else ""
+        text = p.text.strip()
         if name.startswith("Heading"):
             started = True
-        if started and p.text.strip():
-            out.append((name, p.text.strip()))
+            if _REFS_TITLE.match(text):
+                break  # the generated reference list is not the student's prose
+        if started and text:
+            out.append((name, text))
     for t in d.tables:
         for row in t.rows:
             for cell in row.cells:
@@ -129,7 +137,7 @@ def check_document(
 
     paras = _body_paragraphs(docx_path)
     text = "\n".join(t for _, t in paras)
-    words = re.findall(r"[A-Za-z][A-Za-z'’-]*", text)
+    words = re.findall(r"[A-Za-z][A-Za-z'’-]*", _URLISH.sub(" ", text))
     total_words = len(words)
 
     # Placeholders left behind
@@ -154,6 +162,9 @@ def check_document(
         for w in sorted(sc.unknown(candidates)):
             if any(f in sc for f in _american(w)):
                 continue  # valid British spelling
+            stems = [w[:-1]] + ([w[:-2]] if w.endswith("es") else []) if w.endswith("s") else []
+            if any(st in sc or st in EE_WORDS for st in stems):
+                continue  # plural of a known word (capacitances, inductances, ...)
             fix = sc.correction(w)
             if fix and fix != w:
                 add("warning", w, f"Possible spelling mistake: '{w}' (did you mean '{fix}'?)")
@@ -211,7 +222,7 @@ def check_document(
         for k, s in enumerate(secs):
             nxt = secs[k + 1] if k + 1 < len(secs) else None
             topic_heading = template == "assignment" and s["level"] == 3 and nxt is not None  # "• Topic" + sub-headings
-            generated = s["title"].strip().lower() in ("references", "bibliography")
+            generated = bool(_REFS_TITLE.match(s["title"].strip()))
             if s["words"] == 0 and not topic_heading and not generated and not (nxt and nxt["level"] > s["level"]):
                 add("error", s["title"], "Section is empty.")
         labels = set(re.findall(r"\{#((?:fig|tbl|eq):[\w-]+)", markdown)) | set(re.findall(r"\\label\{((?:eq|fig|tbl):[^}]+)\}", markdown))

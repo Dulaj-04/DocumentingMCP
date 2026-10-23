@@ -106,3 +106,35 @@ def test_border_options(home, monkeypatch, width, style, expect):
         assert "pgBorders" not in xml
     else:
         assert expect in xml
+
+
+def test_get_my_input_here_flow(home):
+    pid = _call("start_assignment", {"request": "Lab 4 report", "template": "lab_report"})["plan_id"]
+    r = server.save_plan(pid, steps=["Write", "Check"], answers={"title": "Lab 4"},
+                         sections=["Aim", "Theory", "Procedure", "Result", "Discussion", "Conclusion"])
+    assert "- [ ] Theory" in r["plan"] and "- [x] Result" in r["plan"] and "- [x] Discussion" in r["plan"]
+    # the student ticks only Result and Conclusion
+    r = server.save_plan(pid, steps=["Write", "Check"], input_sections=["Result", "Conclusion"])
+    assert "- [ ] Discussion" in r["plan"] and "- [x] Conclusion" in r["plan"]
+    server.approve_plan(pid, "ok")
+
+    body = "# Aim\n\nTo test.\n\n# Result\n\nIt worked.\n\n# Conclusion\n\nDone.\n"
+    blocked = server.create_document(template="lab_report", title="Lab 4", body_markdown=body, plan_id=pid)
+    assert set(blocked["missing_input"]) == {"Result", "Conclusion"}
+
+    q = server.ask_section_input(pid, "Result")
+    assert any("measure" in x for x in q["questions"])
+    assert "error" in server.save_section_input(pid, "Result", "  ")
+    server.save_section_input(pid, "Result", "LCD showed KDU UNIVERSITY; address was 0x48; first try failed (address shifted twice)")
+    server.save_section_input(pid, "4. Conclusion", "I learnt how I2C addressing works")  # numbering ignored
+    res = server.create_document(template="lab_report", title="Lab 4", body_markdown=body, plan_id=pid)
+    assert "error" not in res
+    assert "input received" in server.get_plan(pid)["plan"]
+    rep = server.check_document(res["docx"])
+    assert rep["summary"]["sections_from_student_input"] == "2 of 2 ticked sections"
+
+    # a ticked section added later without input is blocked
+    server.save_plan(pid, steps=["Write", "Check"], sections=["Aim", "Result", "Conclusion", "Discussion"],
+                     input_sections=["Result", "Conclusion", "Discussion"])
+    out = server.insert_section(res["docx"], "# Discussion\n\nText.", before="Conclusion")
+    assert out["missing_input"] == ["Discussion"]

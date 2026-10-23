@@ -94,6 +94,11 @@ def _upright_units(seg: str) -> str:
     return seg
 
 
+def _abs_bars(seg: str) -> str:
+    """|V_i| -> \\left| V_i \\right| so Word gets a real delimiter pair instead of two loose bars."""
+    return re.sub(r"(?<![\\a-zA-Z])\|(?!\|)([^|{}]+?)\|", r"\\left|\1\\right|", seg)
+
+
 def _outside_protected(tex: str, fn) -> str:
     parts, last = [], 0
     for m in _PROTECTED.finditer(tex):
@@ -119,4 +124,5 @@ def prepare(tex: str, *, scientific: bool = True) -> PreparedMath:
     tex = _rewrite_siunitx(tex)
     if scientific:
         tex = _outside_protected(tex, lambda s: _upright_units(_upright_subscripts(s)))
+    tex = _outside_protected(tex, _abs_bars)
     return PreparedMath(latex=tex.strip(), tag=tag, notag=notag, label=lab.group(1).strip() if lab else None)

@@ -42,7 +42,8 @@ TABLE_HEAD_FILL, TABLE_BAND_FILL, TABLE_BORDER = "2C3E7A", "EDF0F8", "BFBFBF"
 MAX_IMG_H = 8.0
 _ALIGN = {"left": WD_ALIGN_PARAGRAPH.LEFT, "center": WD_ALIGN_PARAGRAPH.CENTER}
 _PAGEBREAK_RAW = re.compile(r"^\s*(<!--\s*page\s*break\s*-->|\\newpage|\\pagebreak|\\clearpage)\s*$", re.I)
-_UNNUMBERED = re.compile(r"^(references|bibliography|appendix\b.*|acknowledge?ments?)$", re.I)
+_SECTION_NO = r"(?:\d+(?:\.\d+)*\.?\s+)?"  # optional "6. " / "6.1 " in front of a heading
+_UNNUMBERED = re.compile(r"^" + _SECTION_NO + r"(references|bibliography|appendix\b.*|acknowledge?ments?)$", re.I)
 _QUESTION_PREFIX = re.compile(r"^\s*(?:Q(?:uestion)?\s*)?\d+\s*[.):]\s*", re.I)
 
 
@@ -51,6 +52,8 @@ class CoverInfo:
     title: str
     module: str = ""
     submission_date: str = ""
+    department: str = ""  # overrides the profile's department for this document
+    members: list = field(default_factory=list)  # group work: [{"name": ..., "reg_no": ...}]
 
 
 @dataclass
@@ -75,7 +78,7 @@ VISUAL_CLASSES = {
     "circuit": "circuit", "schematic": "circuit", "logic": "circuit",
 }
 _CROSSREF = re.compile(r"^(fig|tbl|tab|eq):", re.I)
-_REFS_HEADING = re.compile(r"^(references|bibliography|reference list)$", re.I)
+_REFS_HEADING = re.compile(r"^" + _SECTION_NO + r"(references|bibliography|reference list)$", re.I)
 
 
 @dataclass
@@ -439,28 +442,32 @@ class ReportBuilder:
                     r.add_break()
 
         caps_line(self.profile.university, 34)
-        caps_line(self.profile.department, 0)
+        caps_line(cover.department or self.profile.department, 0)
         if cover.module:
             caps_line(cover.module, 28)
 
         t = d.add_paragraph()
         t.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        t.paragraph_format.space_before = Pt(84)
+        t.paragraph_format.space_before = Pt(60 if cover.members else 84)
         t.paragraph_format.space_after = Pt(0)
         self._font(t.add_run(cover.title), self.s.title_font, self.s.title_size, bold=True)
 
-        details = [
-            ("Name", self.profile.name),
-            ("Reg No", self.profile.reg_no),
-            ("Intake", self.profile.intake),
-            ("Submission Date", cover.submission_date),
-        ]
+        if cover.members:
+            self._members_table(cover.members)
+            details = [("Intake", self.profile.intake), ("Submission Date", cover.submission_date)]
+        else:
+            details = [
+                ("Name", self.profile.name),
+                ("Reg No", self.profile.reg_no),
+                ("Intake", self.profile.intake),
+                ("Submission Date", cover.submission_date),
+            ]
         details = [(k, v) for k, v in details if v]
         for i, (label, value) in enumerate(details):
             para = d.add_paragraph()
             pf = para.paragraph_format
             pf.left_indent = Inches(0.25)
-            pf.space_before = Pt(86 if i == 0 else 0)
+            pf.space_before = Pt((14 if cover.members else 86) if i == 0 else 0)
             pf.space_after = Pt(10)
             pf.tab_stops.add_tab_stop(Inches(1.75))
             self._font(para.add_run(f"{label}\t"), self.s.cover_font, 12)
@@ -513,6 +520,34 @@ class ReportBuilder:
             fp.add_run("\t")
             if self.opt.page_numbers == "bottom-right":
                 fields.add_field(fp, "PAGE", "1", size_pt=size)
+
+    def _members_table(self, members: list) -> None:
+        """Group cover: a plain No. / Name / Reg No table in place of the single-student lines."""
+        d = self.doc
+        lead = d.add_paragraph()
+        lead.paragraph_format.space_before = Pt(40)
+        lead.paragraph_format.space_after = Pt(6)
+        lead.paragraph_format.left_indent = Inches(0.25)
+        self._font(lead.add_run("Group Members"), self.s.cover_font, 12, bold=True)
+        table = d.add_table(rows=len(members) + 1, cols=3)
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        borders = OxmlElement("w:tblBorders")
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            el = OxmlElement(f"w:{side}")
+            for k, v in (("w:val", "single"), ("w:sz", "4"), ("w:space", "0"), ("w:color", "000000")):
+                el.set(qn(k), v)
+            borders.append(el)
+        table._tbl.tblPr.append(borders)
+        rows = [("No.", "Name", "Reg No")] + [
+            (str(i), str(m.get("name", "")), str(m.get("reg_no", ""))) for i, m in enumerate(members, 1)
+        ]
+        for r_i, values in enumerate(rows):
+            for c_i, val in enumerate(values):
+                para = table.cell(r_i, c_i).paragraphs[0]
+                para.paragraph_format.space_after = Pt(1)
+                para.paragraph_format.space_before = Pt(1)
+                self._font(para.add_run(val), self.s.cover_font, 11, bold=(r_i == 0))
+        _set_col_widths(table, (0.6, 3.4, 2.4))
 
     @staticmethod
     def _font(run, name: str, size: float, bold: bool = False) -> None:

@@ -116,7 +116,7 @@ def workflow() -> None:
           C --> D[Rough plan]
           D --> E{You approve<br>the plan?}
           E -- No --> D
-          E -- Yes --> F[Work on next step]
+          E -- Yes --> F[Next step: your input first<br>for ticked sections, then write]
           F --> G{Check-in:<br>happy with it?}
           G -- Change --> F
           G -- Next step --> H[Figures reviewed<br>and approved by you]

@@ -24,6 +24,7 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 | | |
 |---|---|
 | 🗒️ **Plan first, then step by step** | It gives you a requirements checklist to tick, shows the defaults so you can change them, asks all its questions at once and agrees a plan with you. After that it checks in with you after every step. |
+| 🙋 **"Get my input here"** | Tick the sections you want to contribute to. The AI asks for your real results, problems and conclusions, and builds those sections around your answers. |
 | 🏛️ **KDU house style** | Cover page, page border, page numbers, fonts, spacing and question numbering, measured from a real submitted assignment. Three templates: `assignment`, `lab_report`, `ca_report`. |
 | ∑ **Real Word equations** | Write LaTeX and get editable Word equations, typeset the ISO way (V<sub>out</sub>, 5 V, 10 µF), with optional numbering. |
 | 📈 **Graphs, diagrams, circuits** | Drawn from a few lines of text: plots from data, formulas or Excel; block diagrams and flowcharts; circuits and logic gates. |
@@ -56,10 +57,14 @@ server, so every document comes out the same way however the AI phrases things.
 3. **You get all the questions in one message:** module, title, date, notes, data and photos,
    limits, and anything the lecturer asked for.
 4. **You get a rough plan.** Approve it, or say what to change.
-5. **The work happens one step at a time.** After each step you see the result and decide whether
+5. **You choose where to add your own input.** Each section has a "get my input here" tick box.
+   Results, discussion, conclusion and similar sections are ticked by default. Before writing a ticked
+   section, the AI asks you what you measured, what went wrong and what you concluded, and builds the
+   section around your answers.
+6. **The work happens one step at a time.** After each step you see the result and decide whether
    to carry on.
-6. **You review every figure** and approve it.
-7. **It runs the pre-submission check,** then exports the PDF.
+7. **You review every figure** and approve it.
+8. **It runs the pre-submission check,** then exports the PDF.
 
 In apps that support MCP forms, the checklist appears as real tick boxes. Elsewhere it appears in
 the chat. You can say *"skip the planning"* for a quick job.
@@ -252,7 +257,10 @@ These go on every cover page. You can also change the save folder:
 > *(after the checklist)* Tick plots and code too. Make the border 1.5 pt and put the page numbers
 > on the right. Due 17/05/2026, no page limit.
 
-> *(after the plan)* Looks good, go ahead.
+> *(after the plan)* Get my input for the Result, Discussion and Conclusion only. Looks good, go ahead.
+
+> *(before the Result section)* LCD showed "KDU UNIVERSITY" on line 1. The first try failed because I
+> shifted the address twice; it worked at 0x48.
 
 Every question in the brief becomes a numbered heading in the master assignment format. Questions
 that say *"using a suitable diagram"* get a drawn diagram.
@@ -347,6 +355,7 @@ The AI calls these for you. The list shows what the server can do.
 | Planning | `start_assignment` | Requirements checklist, defaults to confirm, and every open question (as a form when the app supports it) |
 | | `save_plan`, `approve_plan` | Store your answers and the step plan; approval needs your own words |
 | | `update_plan_step`, `get_plan` | Track progress and check in with you after each step |
+| | `ask_section_input`, `save_section_input` | "Get my input here": ask you about a ticked section, and keep your answers word for word |
 | Profile | `get_profile`, `set_profile` | Name, reg no, intake and output folder, stored once |
 | Writing | `list_templates`, `get_writing_guide` | Templates, and the writing rules (house style, student voice) |
 | | `create_document` | Build the Word file (only once a plan is approved) |
@@ -409,5 +418,5 @@ src/documenting_mcp/
   export.py         PDF export (Word or LibreOffice)
 docs/style-spec.md  the measured house style
 examples/           sample documents (see examples/README.md)
-tests/              48 tests
+tests/              uv run pytest
 ```

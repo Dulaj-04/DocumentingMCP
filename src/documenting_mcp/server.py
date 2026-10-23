@@ -15,7 +15,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field, create_model
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import export, ingest, planning, project, quality, references
+from . import __version__, export, ingest, planning, project, quality, references
 from .builder import BuildOptions, CoverInfo, build_report
 from .guides import guide_for
 from .profile import Profile, load_profile, save_profile
@@ -27,6 +27,7 @@ IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".emf", "
 
 mcp = MCPServer(
     "DocumentingMCP",
+    version=__version__,
     instructions=(
         "Generates university engineering documents (lab reports, CA/simulation reports, Q&A assignments) "
         "as formatted Word files in the KDU EE house style. This is an INTERACTIVE, PLAN-FIRST workflow:\n"
@@ -34,8 +35,11 @@ mcp = MCPServer(
         "2. start_assignment as soon as the student describes a task. Do NOT write anything yet. Show the "
         "requirements checklist with tick boxes and the current defaults (page border, page numbers, tables, ...), "
         "and ask ALL open questions in one message. Wait for the reply.\n"
-        "3. save_plan with their ticks, changed defaults, answers and a rough step-by-step plan; show the plan "
-        "and ask for approval or changes. approve_plan only after the student explicitly agrees.\n"
+        "3. save_plan with their ticks, changed defaults, answers, the list of sections and a rough step-by-step "
+        "plan; show the plan, including the 'get my input here' tick per section, and ask for approval or "
+        "changes. approve_plan only after the student explicitly agrees.\n"
+        "3b. Before writing any section ticked 'get my input here', call ask_section_input, ask the student, "
+        "save their words with save_section_input, and build the section around what they said.\n"
         "4. Work through the plan one step at a time. After each step call update_plan_step, tell the student "
         "what was done, show the result, and ask whether to continue or change something. Never run the "
         "whole job silently.\n"
@@ -177,7 +181,10 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
     result = build_report(
         style=style,
         profile=profile,
-        cover=CoverInfo(title=src.title.strip(), module=src.module.strip(), submission_date=src.submission_date),
+        cover=CoverInfo(
+            title=src.title.strip(), module=src.module.strip(), submission_date=src.submission_date,
+            department=opts.get("department") or "", members=list(opts.get("members") or []),
+        ),
         markdown=src.body_markdown,
         out_path=out_path,
         assets_dir=assets,
@@ -306,6 +313,8 @@ def save_plan(
     settings: dict | None = None,
     answers: dict | None = None,
     still_unanswered: list[str] | None = None,
+    sections: list[str] | None = None,
+    input_sections: list[str] | None = None,
 ) -> dict:
     """Save the student's ticked requirements, changed defaults, answers and a rough step-by-step plan, then
     show the plan to the student for approval.
@@ -314,7 +323,11 @@ def save_plan(
     calculation", "Review figures with student", "References + pre-submission check", "Export PDF"].
     requirements: {key: true/false} from the checklist. settings: changed defaults, e.g.
     {"border_width_pt": 1.5, "page_numbers": "bottom-right"}. answers: {"module": ..., "title": ...}.
-    still_unanswered: questions you still need answered (the plan cannot be approved until they are)."""
+    still_unanswered: questions you still need answered (the plan cannot be approved until they are).
+    sections: every section / question the document will have, in order (e.g. ["Aim", "Theory", "Result",
+        "Discussion", "Conclusion"] or the brief's questions). They are shown with "get my input here" tick boxes.
+    input_sections: the sections the STUDENT ticked for their own input. Leave out the first time to show
+        the suggested ticks (results, observations, procedure, discussion, conclusion, code, calculations)."""
     plan = planning.load(plan_id)
     if requirements:
         plan.requirements.update({k: bool(v) for k, v in requirements.items()})
@@ -327,6 +340,19 @@ def save_plan(
         plan.answers.update({k: str(v) for k, v in answers.items()})
     plan.open_questions = [{"key": f"extra{i}", "question": q} for i, q in enumerate(still_unanswered or [])]
     plan.steps = [{"n": i + 1, "title": t, "status": "pending", "note": ""} for i, t in enumerate(steps)]
+    if sections:
+        old = {planning._norm_title(x["title"]): x for x in plan.sections}
+        new_sections = []
+        for title in sections:
+            suggested, questions = planning.section_profile(title)
+            prev = old.get(planning._norm_title(title), {})
+            new_sections.append({"title": title, "my_input": prev.get("my_input", suggested),
+                                 "questions": questions, "input": prev.get("input", "")})
+        plan.sections = new_sections
+    if input_sections is not None:
+        ticked = {planning._norm_title(t) for t in input_sections}
+        for sec in plan.sections:
+            sec["my_input"] = planning._norm_title(sec["title"]) in ticked
     plan.status = "gathering_requirements" if plan.open_questions else "awaiting_approval"
     plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": "plan saved"})
     planning.save(plan)
@@ -336,8 +362,9 @@ def save_plan(
         "plan": planning.plan_markdown(plan),
         "instruction": (
             "Ask the remaining questions first." if plan.open_questions else
-            "Show this plan to the student and ask: approve, or what should change? Call approve_plan only after "
-            "they clearly agree; if they want changes, call save_plan again."
+            "Show this plan to the student, including the 'get my input here' section ticks, and ask: which sections "
+            "do you want to give your own input for, and do you approve the plan? Call save_plan again with "
+            "input_sections if they change the ticks. Call approve_plan only after they clearly agree."
         ),
     }
 
@@ -394,11 +421,58 @@ def update_plan_step(plan_id: str, step: int, status: Literal["in_progress", "do
 
 
 @mcp.tool()
+def ask_section_input(plan_id: str, section: str) -> dict:
+    """Before writing a section the student ticked "get my input here": returns the questions to ask them
+    (their real results, observations, problems hit, own conclusions...). Ask them, wait for the answers,
+    then call save_section_input. Do not write the section from your own assumptions."""
+    plan = planning.load(plan_id)
+    sec = planning.find_section(plan, section)
+    if sec is None:
+        _tick, questions = planning.section_profile(section)
+        sec = {"title": section, "my_input": True, "questions": questions, "input": ""}
+        plan.sections.append(sec)
+        planning.save(plan)
+    return {
+        "section": sec["title"],
+        "questions": sec["questions"],
+        "already_given": sec.get("input", ""),
+        "instruction": "Ask the student these questions (add any specific to this assignment) in one message and "
+        "wait. Rough notes or bullet points are fine. Then call save_section_input with their words.",
+    }
+
+
+@mcp.tool()
+def save_section_input(plan_id: str, section: str, student_input: str) -> dict:
+    """Store the student's own input for a section, word for word (their results, observations, problems,
+    opinions). The section must then be written AROUND these points: keep their numbers, details and
+    reasoning, use their phrasing where it reads well, and never invent results they did not give."""
+    plan = planning.load(plan_id)
+    if not student_input.strip():
+        return {"error": "student_input is empty; ask the student first."}
+    sec = planning.find_section(plan, section)
+    if sec is None:
+        _tick, questions = planning.section_profile(section)
+        sec = {"title": section, "my_input": True, "questions": questions, "input": ""}
+        plan.sections.append(sec)
+    sec["input"] = (sec.get("input", "") + "\n" + student_input.strip()).strip()
+    sec["my_input"] = True
+    plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": f"input for {sec['title']}"})
+    planning.save(plan)
+    return {
+        "section": sec["title"],
+        "saved": True,
+        "instruction": "Write this section around the student's points (their data, problems and conclusions), "
+        "then show it to them and ask if it matches what they meant.",
+    }
+
+
+@mcp.tool()
 def get_plan(plan_id: str) -> dict:
     """Show a plan with its requirements, settings, answers, steps and progress."""
     plan = planning.load(plan_id)
     return {"plan": planning.plan_markdown(plan), "status": plan.status, "answers": plan.answers,
-            "settings": plan.settings, "docx": plan.docx_path}
+            "settings": plan.settings, "docx": plan.docx_path,
+            "section_inputs": {x["title"]: x.get("input", "") for x in plan.sections if x.get("my_input")}}
 
 
 @mcp.tool()
@@ -428,6 +502,8 @@ def create_document(
     name: str = "",
     reg_no: str = "",
     intake: str = "",
+    department: str = "",
+    members: list[dict] | None = None,
     plan_id: str = "",
     skip_planning: bool = False,
 ) -> dict:
@@ -457,6 +533,10 @@ def create_document(
     table_style: grid (default: plain Word Table Grid, black lines, no colours, bold header) | shaded
         (navy header with banded rows).
     border_width_pt / border_style: page border, default thin 0.5 pt single line (0 or "none" removes it).
+    department: department/faculty lines for this cover only (newline between lines), e.g.
+        "Faculty of Engineering\nDepartment of Mathematics". Defaults to the profile.
+    members: group assignments: [{"name": "A B C Student", "reg_no": "D/ENG/EE/25/0000"}, ...] shown as a
+        table on the cover instead of a single name.
     plan_id: the approved plan from start_assignment/save_plan/approve_plan. Required: the document is
         only written after the student has approved a plan. Settings agreed in the plan are applied.
     skip_planning: only if the student explicitly says to skip the planning step.
@@ -476,6 +556,16 @@ def create_document(
                 "and questions, save_plan with their answers, and approve_plan once they agree. Then call "
                 "create_document with plan_id.",
                 "plan_status": plan.status if plan else None,
+            }
+    if plan is not None:
+        heads = [s_.title for s_ in project.sections(body_markdown)]
+        missing = planning.missing_input(plan, heads)
+        if missing:
+            return {
+                "error": "These sections are ticked 'get my input here' but the student's input has not been "
+                "collected yet: " + ", ".join(missing) + ". Use ask_section_input / save_section_input first "
+                "(or write only the other sections for now).",
+                "missing_input": missing,
             }
     if plan is not None:  # settings the student agreed in the plan win over untouched defaults
         st = plan.settings
@@ -513,6 +603,9 @@ def create_document(
             "table_style": table_style,
             "border_width_pt": border_width_pt,
             "border_style": border_style,
+            "department": department,
+            "members": list(members or []),
+            "plan_id": plan_id,
         },
     )
     result = _build(src, export_pdf)
@@ -533,6 +626,21 @@ def _rebuild(docx_path: str, src: DocSource, export_pdf: bool, note: str) -> dic
     out = _build(src, export_pdf, out_path=Path(docx_path).expanduser())
     out["change"] = note
     return out
+
+
+def _input_gate(src: DocSource, headings: list[str]) -> dict | None:
+    pid = src.options.get("plan_id")
+    if not pid:
+        return None
+    try:
+        plan = planning.load(pid)
+    except FileNotFoundError:
+        return None
+    missing = planning.missing_input(plan, headings)
+    if missing:
+        return {"error": "Collect the student's own input first (ask_section_input / save_section_input) for: "
+                + ", ".join(missing), "missing_input": missing}
+    return None
 
 
 @mcp.tool()
@@ -561,6 +669,9 @@ def update_section(docx_path: str, section: str, new_markdown: str, export_pdf: 
     new_markdown: the new content. If it does not start with a heading, the existing heading is kept.
     """
     src = load_source(docx_path)
+    blocked = _input_gate(src, [section] + [s_.title for s_ in project.sections(new_markdown)])
+    if blocked:
+        return blocked
     src.body_markdown = project.replace_section(src.body_markdown, section, new_markdown)
     return _rebuild(docx_path, src, export_pdf, f"Replaced section '{section}'.")
 
@@ -571,6 +682,9 @@ def insert_section(docx_path: str, new_markdown: str, after: str = "", before: s
     Give after= or before= a heading / outline number / "Q3"; with neither, it is added at the end
     (before References)."""
     src = load_source(docx_path)
+    blocked = _input_gate(src, [s_.title for s_ in project.sections(new_markdown)])
+    if blocked:
+        return blocked
     src.body_markdown = project.insert_section(src.body_markdown, new_markdown, after or None, before or None)
     return _rebuild(docx_path, src, export_pdf, "Inserted new section.")
 
@@ -614,6 +728,8 @@ def update_document_settings(
     table_style: Literal["grid", "shaded"] | None = None,
     border_width_pt: float | None = None,
     border_style: Literal["single", "double", "thick-thin", "dotted", "dashed", "none"] | None = None,
+    department: str | None = None,
+    members: list[dict] | None = None,
     export_pdf: bool = False,
 ) -> dict:
     """Change the cover details or document options (only the fields given) and rebuild."""
@@ -627,6 +743,7 @@ def update_document_settings(
         figure_captions=figure_captions, number_equations=number_equations, toc=toc, list_of_figures=list_of_figures,
         list_of_tables=list_of_tables, page_numbers=page_numbers, header_text=header_text, footer_text=footer_text,
         table_style=table_style, border_width_pt=border_width_pt, border_style=border_style,
+        department=department, members=members,
     ).items():
         if val is not None:
             src.options[key] = val
@@ -861,7 +978,7 @@ def lookup_reference(identifier: str, key: str = "", save: bool = True) -> dict:
 def add_reference(
     key: str,
     title: str,
-    type: Literal["article", "book", "chapter", "inproceedings", "web", "datasheet", "manual", "lecture", "report", "thesis", "standard"] = "web",
+    type: Literal["article", "book", "chapter", "inproceedings", "preprint", "web", "datasheet", "manual", "lecture", "report", "thesis", "standard"] = "web",
     authors: list[str] | None = None,
     organization: str = "",
     journal: str = "",
@@ -877,13 +994,15 @@ def add_reference(
     doi: str = "",
     url: str = "",
     accessed: str = "",
+    eprint: str = "",
 ) -> dict:
-    """Save a reference (book, paper, datasheet, website, lecture notes...) to the library for [@key] citations.
+    """Save a reference (book, paper, preprint, datasheet, website, lecture notes...) to the library for [@key] citations.
+    For arXiv preprints use type="preprint" and eprint="arXiv:2506.23425".
     authors: ["Behzad Razavi", ...]. accessed: YYYY-MM-DD for web sources (defaults to today when url is set)."""
     entry = {k: v for k, v in dict(
         type=type, authors=authors or [], organization=organization, journal=journal, booktitle=booktitle,
         publisher=publisher, address=address, edition=edition, volume=volume, number=number, pages=pages,
-        year=year, month=month, doi=doi, url=url, title=title,
+        year=year, month=month, doi=doi, url=url, title=title, eprint=eprint,
         accessed=accessed or (dt.date.today().isoformat() if url else ""),
     ).items() if v not in ("", None, [])}
     lib = references.load_library()
@@ -953,10 +1072,27 @@ def check_document(
             expected = len(ingest.parse_brief(ingest.read_text(brief_path).text).questions) or None
         except Exception as exc:
             warnings.append(f"Could not read the brief: {exc}")
-    return quality.check_document(
+    report = quality.check_document(
         path, markdown, warnings, word_limit=word_limit, page_count=pages, page_limit=page_limit,
         expected_questions=expected, template=template,
     )
+    if markdown is not None and src.options.get("plan_id"):
+        try:
+            plan = planning.load(src.options["plan_id"])
+            heads = [s_.title for s_ in project.sections(markdown)]
+            ticked = [planning.find_section(plan, h) for h in heads]
+            ticked = [t for t in ticked if t and t["my_input"]]
+            given = [t["title"] for t in ticked if t.get("input")]
+            report["summary"]["sections_from_student_input"] = f"{len(given)} of {len(ticked)} ticked sections"
+            for t in ticked:
+                if not t.get("input"):
+                    report["issues"].insert(0, {"severity": "error", "where": t["title"],
+                        "message": f"'{t['title']}' was ticked 'get my input here' but no input from the student was recorded."})
+                    report["summary"]["errors"] += 1
+                    report["summary"]["ready_to_submit"] = False
+        except FileNotFoundError:
+            pass
+    return report
 
 
 @mcp.tool()

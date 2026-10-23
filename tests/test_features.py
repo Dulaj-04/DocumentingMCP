@@ -334,3 +334,51 @@ def test_bar_chart_keeps_category_labels(home):
     finally:
         plt.Figure.savefig = orig
     assert seen["labels"] == ["GS", "FD", "NR"]
+
+
+# --------------------------------------------------------------------------- regressions from the MA2263 trial
+
+
+def test_numbered_references_heading_is_not_duplicated(home):
+    server.add_reference(key="k1", type="book", authors=["Walt Kester"], title="Handbook", publisher="Newnes", year=2005)
+    res = server.create_document(template="ca_report", title="T", body_markdown="# 1. Intro\n\nText [@k1].\n\n# 6. References\n")
+    heads = [p.text for p in docx.Document(res["docx"]).paragraphs if p.style.name.startswith("Heading")]
+    assert heads.count("6. References") == 1 and "References" not in heads
+
+
+def test_author_suffix_and_preprint():
+    assert references.format_authors(["A. Lozano III"]) == "A. Lozano III"
+    assert references.format_authors(["Lozano, A., III"]) == "A. Lozano III"
+    e = {"type": "preprint", "authors": ["S. E. Nwachukwu"], "title": "Power flow", "eprint": "arXiv:2506.23425", "year": 2025}
+    assert references.to_plain(references.format_ieee(e)) == 'S. E. Nwachukwu, "Power flow," arXiv preprint arXiv:2506.23425, 2025.'
+
+
+def test_absolute_value_bars_become_delimiters():
+    from documenting_mcp.latex_prep import prepare
+
+    assert prepare(r"|V_i||V_j|").latex == r"\left|V_{i}\right|\left|V_{j}\right|" or \
+        prepare(r"|V_i||V_j|").latex == r"\left|V_i\right|\left|V_j\right|"
+    assert prepare(r"\|x\|").latex == r"\|x\|"
+
+
+def test_checker_ignores_urls_plurals_and_reference_list(home):
+    server.add_reference(key="w", type="web", organization="ST", title="Datasheet", url="https://www.st.com/ijeecs/xyzzq")
+    body = ("# Q\n\nThe thermal capacitances and inductances were modelled; see https://www.st.com/ijeecs/xyzzq "
+            "and doi: 10.11591/ijeecs.v34 for details [@w].\n\n# References\n")
+    res = server.create_document(template="assignment", title="T", body_markdown=body)
+    msgs = " | ".join(i["message"] for i in server.check_document(res["docx"])["issues"])
+    for word in ("capacitances", "inductances", "https", "ijeecs", "xyzzq"):
+        assert word not in msgs, word
+
+
+def test_group_cover_and_department(home):
+    members = [{"name": f"Student {i}", "reg_no": f"D/ENG/EE/25/000{i}"} for i in range(1, 6)]
+    res = server.create_document(template="ca_report", title="Numerical Methods", body_markdown="# 1. Intro\n\nText.\n",
+                                 department="Faculty of Engineering\nDepartment of Mathematics", members=members)
+    d = docx.Document(res["docx"])
+    texts = [p.text for p in d.paragraphs]
+    assert "FACULTY OF ENGINEERING\nDEPARTMENT OF MATHEMATICS" in texts
+    assert "Group Members" in texts and not any(t.startswith("Name\t") for t in texts)
+    cover_table = d.tables[0]
+    assert [c.text for c in cover_table.rows[0].cells] == ["No.", "Name", "Reg No"]
+    assert cover_table.cell(5, 2).text == "D/ENG/EE/25/0005"
