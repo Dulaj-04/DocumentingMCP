@@ -16,14 +16,19 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 
 ## What it does
 
-- **House style.** It gives you the KDU cover page, page borders, fonts, numbering and spacing,
+- **Asks before it writes.** It gives you a checklist of requirements to tick and the defaults to
+  confirm, asks all its questions at once, and agrees a plan with you. After that it works step by
+  step and checks in with you after each step.
+- **House style.** It gives you the KDU cover page, page border (thickness adjustable), page numbers,
+  fonts, numbering and spacing,
   measured from a real submitted assignment. Three templates are included: `assignment`
   (question and answer), `lab_report` and `ca_report`.
 - **Real Word equations.** Write the maths in LaTeX, e.g. `$V_{out} = V_{ref}\frac{D}{2^n}$`, and it
   becomes a native equation you can still edit in Word. Typesetting follows the ISO convention:
   upright subscripts like V<sub>out</sub>, and units like 5 V and 10 µF.
-- **Diagrams drawn for you.** Block diagrams and flowcharts (Mermaid syntax), circuits and logic
-  gates, and graphs from data, formulas or Excel/CSV files.
+- **Diagrams drawn for you, approved by you.** Block diagrams and flowcharts (Mermaid syntax), circuits
+  and logic gates, and graphs from data, formulas or Excel/CSV files. Each one gets a critical review,
+  and you approve it before it counts as final.
 - **Plain Word tables.** Black grid lines and a bold header row, without the coloured "AI look".
 - **IEEE references.** Write `[@key]` in the text and get [1], with the reference list built for you.
   References can be looked up from a DOI, ISBN or web link.
@@ -304,7 +309,7 @@ $$V_{out} = V_{ref} \times \frac{D}{2^{n}} \label{eq:dac}$$
 - ```` ```plot ````, ```` ```diagram ```` and ```` ```circuit ```` are drawings.
 - `[@key]` is a citation, and `@fig:x`, `@tbl:x` and `@eq:x` are cross-references.
 
-Full examples are in [`examples/`](examples). The rules the AI follows, including how to write like
+Full examples are in [`examples/`](examples) (see its README for which ones need images). The rules the AI follows, including how to write like
 a student rather than an AI, are in [`src/documenting_mcp/guides.py`](src/documenting_mcp/guides.py).
 
 ## Tools
@@ -333,6 +338,11 @@ never on the cover). The page border is 0.5 pt (changeable). Every generated fig
 - Reference lookup needs internet access. The similarity check only compares against the files you
   give it; it is not Turnitin.
 - Aptos and Agency FB come with Word 2021 / Microsoft 365. Without them, Word substitutes similar fonts.
+- **Close the document in Word before asking for changes.** Each change rebuilds the .docx. If the
+  file is open, a copy named `… (new).docx` is saved instead.
+- **Edits you make by hand in Word are not kept** when the AI rebuilds the document. Ask the AI to
+  make changes, or do your own final touches last. Live editing of an open Word document is not
+  supported yet.
 
 ## Project layout
 
@@ -345,6 +355,8 @@ src/documenting_mcp/
   plots.py, diagrams.py    graphs, block diagrams, circuits
   references.py   IEEE references              quality.py  checker and similarity
   project.py      section editing              ingest.py   briefs, notes, spreadsheets
+  planning.py     checklist, questions, plan   figure_review.py  figure critique and approval
+  fields.py       Word fields (numbering, TOC) export.py   PDF export (Word or LibreOffice)
 docs/style-spec.md   the measured house style
 examples/            sample documents
 tests/               uv run pytest

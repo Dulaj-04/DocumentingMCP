@@ -12,6 +12,23 @@ the MCP server must reproduce.
 
 All three were authored in MS Word, so the output must be **.docx** (with optional PDF export).
 
+> **How to read this file.** Sections 1–8 record what was *observed* in the three samples. Section 9
+> (the master assignment) and sections 10–11 (user decisions) override them where they differ. The
+> table below is what the generator produces **today**.
+
+| Setting | Current output |
+|---|---|
+| Paper, margins | US Letter; 0.5 in left/right, 0.7 in top/bottom |
+| Page border | Single line, 0.5 pt, about 32 pt from the page edge. Adjustable 0.25–6 pt; single, double, thick-thin, dotted, dashed or none |
+| Page numbers | On, bottom centre; the cover is never numbered (bottom-right or none on request) |
+| Cover | Crest 1.83 in; Aptos Bold 14 capitals; Agency FB Bold 22 title; details with no separator, values bold |
+| Body (assignment) | Times New Roman 12, 1.15 spacing, left-aligned, answers indented 0.375 in |
+| Tables | Plain Word "Table Grid": 0.5 pt black, bold header, no shading (`shaded` on request) |
+| Equations | Native Word (OMML), Cambria Math, ISO 80000-2 upright subscripts and units |
+| Figures | Generated figures need the student's approval; captions only when labelled or requested |
+| Extras (opt-in) | Contents page, lists of figures and tables, running header/footer, equation numbering |
+| Workflow | Plan first (checklist, defaults, questions, approved plan), then step by step with check-ins |
+
 ## 1. Page setup (all document types)
 
 | Property | Value |
@@ -121,10 +138,12 @@ Left-aligned, bold, underlined Times New Roman 16 pt headings, for example:
 ## 8. Implications for the MCP server
 
 - Generate .docx with python-docx. Page borders, shading and OMML equations need direct XML (`w:pgBorders`, `w:shd`, `m:oMath`).
-- Equations: accept LaTeX and convert it to OMML (LaTeX → MathML → OMML via the MS `MML2OMML.XSL`, or via pandoc).
+- Equations: accept LaTeX and convert it to OMML. *Implemented with pandoc's OMML writer plus our own
+  ISO 80000-2 normalisation (`latex_prep.py`).*
 - Ship three templates: `lab_report`, `ca_report` and `assignment`. They share the cover builder and page setup.
 - Profile data (name, reg no, intake, crest image) should be stored once and reused.
-- PDF export through headless LibreOffice. Note that LibreOffice misplaces floating images, so all images must be **inline**.
+- PDF export: MS Word on Windows when available (it refreshes fields first), LibreOffice otherwise.
+  LibreOffice misplaces floating images, so all images are **inline**.
 
 ## 9. MASTER: the assignment format (authoritative)
 
