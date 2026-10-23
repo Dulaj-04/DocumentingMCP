@@ -74,22 +74,35 @@ Section headings are rendered left-aligned, bold and underlined, at 16 pt. A typ
 8. `# Discussion`, `# Conclusion`, and `# References` (IEEE numbered style).
 """,
     "assignment": """\
-# Template: assignment (question-and-answer)
+# Template: assignment (question-and-answer), the MASTER format
 
-Each top-level `# heading` is ONE QUESTION. Paste the full question text as the heading. It is
-numbered automatically (1., 2., 3., …), so do not type the number yourself. Answer under it:
+This template reproduces the master assignment (ET2013 "Assignment on Digital to Analog Conversion
+Techniques"). Follow its structure:
 
-- Justified answer paragraphs.
-- `## Sub-topic` headings (rendered bold and underlined), for example "Working Principle",
-  "Advantages", "Limitations".
-- Definition bullets in the form `- **Term** - explanation`.
-- Display equations for every formula, followed by a "where …" sentence defining the symbols.
-- Diagrams with `![...](path)` where the question asks for a diagram. If you have no image, insert
-  an italic placeholder describing the diagram needed.
-- Comparison questions should use a pipe table.
-
-End with `# References` (it is recognised and NOT numbered as a question), followed by an IEEE-style
-numbered list.
+- Each top-level `# heading` is ONE QUESTION. Paste the full question text, without a number;
+  "1.", "2.", … are added automatically. Inline math is allowed in the question.
+- Answer paragraphs are written directly below the question. They are rendered left-aligned and
+  indented to line up with the question text.
+- `## Sub-heading` gives a bold, underlined heading at the left margin, for example
+  "Significance in Contemporary Electronic Systems", "Working Principle", "Advantages",
+  "Limitations", "Block Descriptions:" or "Performance Parameter Analysis".
+- `### Topic` gives a bulleted, bold, underlined topic heading ("• Binary Weighted Resistor DAC").
+  Use it when one question covers two or more items (two circuits, two methods), with `##`
+  sub-headings under each.
+- Bullets: use `- **Term -** explanation` for definitions, and plain `- item` for advantages or limitations.
+- Every formula is a display equation `$$...$$`, introduced by a lead-in line ("The output voltage
+  is expressed as:") and followed by a "where …" sentence that defines the symbols.
+- Numerical problems:
+  - Start with a `**Given Data**` bold line and a bullet list of the givens.
+  - Then write `**Step 1 - <what>**`, `**Step 2 - <what>**`, … as bold lines, each followed by its
+    equation.
+  - Finish with the boxed result in bold (`**+3.4375 V**`) and one sentence interpreting it.
+- Comparison questions use a 3-column pipe table (`| Parameter | Option A | Option B |`) under a
+  `## …Analysis` sub-heading. It is rendered with a navy header, banded rows and a centered first
+  column. Write each cell as one or two full sentences.
+- Diagrams use `![...](path)` on their own line (rendered at about 92% of the page width). If no
+  image exists, write an italic placeholder describing the diagram that is needed.
+- End with `# References` (not numbered as a question) and an IEEE-style numbered list.
 """,
 }
 

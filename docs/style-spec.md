@@ -125,3 +125,51 @@ Left-aligned, bold, underlined Times New Roman 16 pt headings, for example:
 - Ship three templates: `lab_report`, `ca_report` and `assignment`. They share the cover builder and page setup.
 - Profile data (name, reg no, intake, crest image) should be stored once and reused.
 - PDF export through headless LibreOffice. Note that LibreOffice misplaces floating images, so all images must be **inline**.
+
+## 9. MASTER: the assignment format (authoritative)
+
+The user designated `D_Wickramanayake_..._25_0030.pdf` (ET2013 DAC assignment) as **the master**.
+Its formatting, spacing and alignment override anything above where they differ. These
+measurements were taken from the PDF with PyMuPDF (points from the page edge; 72 pt = 1 in).
+
+**Page.** US Letter. Side margins **0.5 in**. The page border is a thin single line (about 0.5 pt) at
+about 32 pt from every page edge. We use top/bottom margins of 0.7 in so that text never touches
+the border on continuation pages; the master used about 0.5 in.
+
+**Cover.**
+
+| Element | Font | Position (from top of page) |
+|---|---|---|
+| Crest | 1.83 in wide, centered | 87 pt |
+| University line | **Aptos Bold 14, CAPS**, centered | 229 pt |
+| Department (2 lines) | Aptos Bold 14, CAPS | 259 / 278 pt |
+| Module line `ET2013 – ANALOG ELECTRONICS` | Aptos Bold 14 | 337 pt |
+| Title | **Agency FB Bold 22**, centered | 452 pt |
+| Name / Reg No / Intake / Submission Date | Times New Roman 12 at x = 0.75 in, line pitch 26 pt | 572 → 649 pt |
+
+Cover details use no separator; the values are bold (user decision).
+
+**Body.**
+- Times New Roman 12, line spacing 1.15 (15.85 pt pitch), **left-aligned (ragged right)**, 10 pt after each paragraph.
+- Questions use automatic numbering. The number is at 0.125 in and the text at 0.375 in (hanging).
+  There is about 32 pt before each question and 16 pt after it.
+- Answer paragraphs are indented 0.375 in, aligned with the question text.
+- `##` sub-headings are bold and underlined, at the margin (x = 0).
+- `###` topic headings use a "•" bullet at 0.25 in and bold, underlined text at 0.5 in.
+- Bullet lists have the "•" at 1.0 in and the text at 1.25 in, with no extra space between items.
+  Definition bullets put the term in **bold, dash included**.
+- Display equations are centered Cambria Math 12 with about 10 pt above and below. Numerical
+  solutions use bold `Step n - …` lines.
+- Figures are centered at about 6.9 in (92% of the text width).
+
+**Tables.**
+- Full width (about 97% of the text width).
+- Calibri 11.
+- Header row: fill **#2C3E7A** (navy) with white, bold, centered text.
+- Body rows alternate white and **#EDF0F8**.
+- The first column is centered horizontally and vertically.
+- Other columns are left-aligned and top-aligned.
+- Borders are single, 0.5 pt, **#BFBFBF**.
+- Cell padding is about 5 pt top and bottom and 6 pt left and right.
+
+These table rules now apply to every template.

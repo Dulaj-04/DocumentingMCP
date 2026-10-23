@@ -28,9 +28,20 @@ class TemplateStyle:
     h3: HeadingStyle
     # Assignments number each top-level heading as a question ("1.", "2.", ...).
     number_h1: bool = False
-    cover_font: str = "Times New Roman"
-    title_font: str = "Times New Roman"
+    # Cover page, measured from the master assignment (docs/style-spec.md §9).
+    cover_font: str = "Times New Roman"  # Name / Reg No / Intake / Date block
+    cover_heading_font: str = "Aptos"  # university, department, module lines
+    title_font: str = "Agency FB"
     title_size: float = 22
+    # Body geometry (inches / points).
+    justify: bool = True  # the master assignment is left-aligned (ragged right)
+    body_indent: float = 0.0  # left indent of ordinary paragraphs
+    para_after: float = 8
+    list_text_indent: float = 0.5  # where level-0 list text starts; the bullet hangs 0.25 in to its left
+    list_item_after: float = 3
+    h3_bulleted: bool = False  # "• Heading" style used for sub-topics in the master assignment
+    table_font: str = "Calibri"
+    table_size: float = 11
     code_font: str = "Consolas"
     code_size: float = 9.5
     figure_captions: bool = False
@@ -76,13 +87,19 @@ CA_REPORT = TemplateStyle(
 
 ASSIGNMENT = TemplateStyle(
     key="assignment",
-    label="Question-and-answer assignment",
+    label="Question-and-answer assignment (master format)",
     body_font=_TNR,
     body_size=12,
-    h1=HeadingStyle(_TNR, 12, space_before=18, space_after=10),
-    h2=HeadingStyle(_TNR, 12, bold=True, underline=True, space_before=12, space_after=6),
-    h3=HeadingStyle(_TNR, 12, bold=True, space_before=10, space_after=4),
+    h1=HeadingStyle(_TNR, 12, space_before=24, space_after=14),
+    h2=HeadingStyle(_TNR, 12, bold=True, underline=True, space_before=14, space_after=10),
+    h3=HeadingStyle(_TNR, 12, bold=True, underline=True, space_before=12, space_after=10),
     number_h1=True,
+    justify=False,
+    body_indent=0.375,
+    para_after=10,
+    list_text_indent=1.25,
+    list_item_after=0,
+    h3_bulleted=True,
     sections=("<one '#' heading per question>", "References"),
 )
 

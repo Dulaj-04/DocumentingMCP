@@ -16,7 +16,7 @@ from pathlib import Path
 import pypandoc
 from docx import Document
 from docx.enum.section import WD_ORIENT
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -28,9 +28,12 @@ from .omml import M, latex_to_omml
 from .profile import Profile
 from .styles import HeadingStyle, TemplateStyle
 
+# Geometry measured from the master assignment: 0.5 in side margins, border ~32 pt from the page edge.
 PAGE_W, PAGE_H = 8.5, 11.0
-MARGIN_TOP, MARGIN_SIDE = 0.75, 0.79
+MARGIN_TB, MARGIN_SIDE = 0.7, 0.5
 CONTENT_W = PAGE_W - 2 * MARGIN_SIDE
+FIGURE_W = CONTENT_W * 0.92
+TABLE_HEAD_FILL, TABLE_BAND_FILL, TABLE_BORDER = "2C3E7A", "EDF0F8", "BFBFBF"
 MAX_IMG_H = 8.0
 _ALIGN = {"left": WD_ALIGN_PARAGRAPH.LEFT, "center": WD_ALIGN_PARAGRAPH.CENTER}
 _PAGEBREAK_RAW = re.compile(r"^\s*(<!--\s*page\s*break\s*-->|\\newpage|\\pagebreak|\\clearpage)\s*$", re.I)
@@ -81,8 +84,8 @@ def _page_borders(sect_pr) -> None:
     for side in ("top", "left", "bottom", "right"):
         el = OxmlElement(f"w:{side}")
         el.set(qn("w:val"), "single")
-        el.set(qn("w:sz"), "8")
-        el.set(qn("w:space"), "28")
+        el.set(qn("w:sz"), "4")
+        el.set(qn("w:space"), "31")
         el.set(qn("w:color"), "000000")
         borders.append(el)
     # pgBorders must come after pgMar/paperSrc in CT_SectPr; insert right after pgMar.
@@ -102,6 +105,21 @@ def _para_box(p) -> None:
         bdr.append(el)
     ppr.append(bdr)
     _shade(ppr, "F5F5F5")
+
+
+def _plain_text(node) -> str:
+    """Concatenated text of a pandoc AST fragment (for sizing table columns)."""
+    if isinstance(node, list):
+        return "".join(_plain_text(n) for n in node)
+    if isinstance(node, dict):
+        if node.get("t") == "Str":
+            return node["c"]
+        if node.get("t") in ("Space", "SoftBreak"):
+            return " "
+        if node.get("t") in ("Math", "Code"):
+            return node["c"][1]
+        return _plain_text(node.get("c"))
+    return ""
 
 
 # --------------------------------------------------------------------------- numbering
@@ -174,7 +192,7 @@ class Numbering:
 
     def bullet(self, base_left: int = 720) -> int:
         return self._register(
-            [self._lvl(i, "bullet", self.BULLETS[i % 3], base_left + 360 * i, 360, font="Arial") for i in range(6)]
+            [self._lvl(i, "bullet", self.BULLETS[i % 3], base_left + 360 * i, 360) for i in range(6)]
         )
 
     def ordered(self, style: str = "Decimal", start: int = 1, base_left: int = 720) -> int:
@@ -187,7 +205,8 @@ class Numbering:
         return self._register(levels)
 
     def questions(self) -> int:
-        return self._register([self._lvl(0, "decimal", "%1.", 360, 360)])
+        # Master: number at 0.125 in, question text at 0.375 in.
+        return self._register([self._lvl(0, "decimal", "%1.", 540, 360)])
 
 
 def _apply_num(p, num_id: int, ilvl: int) -> None:
@@ -220,6 +239,7 @@ class ReportBuilder:
         self.num = Numbering(self.doc)
         self._question_num: int | None = None
         self._after_backmatter = False
+        self._h3_bullets: int | None = None
         self._math: dict[int, object] = {}
         self._fig_n = 0
         self._tab_n = 0
@@ -233,8 +253,8 @@ class ReportBuilder:
         sec = self.doc.sections[0]
         sec.orientation = WD_ORIENT.PORTRAIT
         sec.page_width, sec.page_height = Inches(PAGE_W), Inches(PAGE_H)
-        sec.top_margin = Inches(MARGIN_TOP)
-        sec.bottom_margin = sec.left_margin = sec.right_margin = Inches(MARGIN_SIDE)
+        sec.top_margin = sec.bottom_margin = Inches(MARGIN_TB)
+        sec.left_margin = sec.right_margin = Inches(MARGIN_SIDE)
         sec.header_distance = sec.footer_distance = Inches(0.5)
         _page_borders(sec._sectPr)
 
@@ -245,7 +265,7 @@ class ReportBuilder:
         normal.font.size = Pt(self.s.body_size)
         _set_fonts(normal.element, self.s.body_font)
         pf = normal.paragraph_format
-        pf.space_before, pf.space_after, pf.line_spacing = Pt(0), Pt(8), 1.15
+        pf.space_before, pf.space_after, pf.line_spacing = Pt(0), Pt(self.s.para_after), 1.15
 
         for level, hs in ((1, self.s.h1), (2, self.s.h2), (3, self.s.h3)):
             st = styles[f"Heading {level}"]
@@ -266,19 +286,21 @@ class ReportBuilder:
         pf.alignment = _ALIGN[hs.align]
         pf.space_before, pf.space_after = Pt(hs.space_before), Pt(hs.space_after)
         pf.keep_with_next = True
-        pf.line_spacing = 1.0
+        pf.line_spacing = 1.15
 
     # ---- cover page
 
     def add_cover(self, cover: CoverInfo) -> None:
+        # Vertical rhythm copied from the master: crest top ≈ 1.2 in, university ≈ 3.2 in,
+        # module ≈ 4.7 in, title ≈ 6.3 in, details from ≈ 7.9 in down the page.
         d = self.doc
         p = d.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_before = Pt(54)
-        p.paragraph_format.space_after = Pt(24)
-        p.add_run().add_picture(str(self.profile.logo()), width=Inches(2.1))
+        p.paragraph_format.space_before = Pt(36)
+        p.paragraph_format.space_after = Pt(0)
+        p.add_run().add_picture(str(self.profile.logo()), width=Inches(1.83))
 
-        def caps_line(text: str, before: float, after: float = 6) -> None:
+        def caps_line(text: str, before: float, after: float = 11) -> None:
             para = d.add_paragraph()
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             para.paragraph_format.space_before = Pt(before)
@@ -286,20 +308,19 @@ class ReportBuilder:
             lines = text.upper().split("\n")
             for i, line in enumerate(lines):
                 r = para.add_run(line.strip())
-                self._font(r, self.s.cover_font, 14, bold=True)
+                self._font(r, self.s.cover_heading_font, 14, bold=True)
                 if i < len(lines) - 1:
                     r.add_break()
 
-        caps_line(self.profile.university, 12)
-        caps_line(self.profile.department, 6)
+        caps_line(self.profile.university, 34)
+        caps_line(self.profile.department, 0)
         if cover.module:
-            caps_line(cover.module, 30)
+            caps_line(cover.module, 28)
 
         t = d.add_paragraph()
         t.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        t.paragraph_format.space_before = Pt(78)
+        t.paragraph_format.space_before = Pt(84)
         t.paragraph_format.space_after = Pt(0)
-        t.paragraph_format.line_spacing = 1.5
         self._font(t.add_run(cover.title), self.s.title_font, self.s.title_size, bold=True)
 
         details = [
@@ -312,10 +333,10 @@ class ReportBuilder:
         for i, (label, value) in enumerate(details):
             para = d.add_paragraph()
             pf = para.paragraph_format
-            pf.left_indent = Inches(0.4)
-            pf.space_before = Pt(90 if i == 0 else 0)
+            pf.left_indent = Inches(0.25)
+            pf.space_before = Pt(86 if i == 0 else 0)
             pf.space_after = Pt(10)
-            pf.tab_stops.add_tab_stop(Inches(2.1))
+            pf.tab_stops.add_tab_stop(Inches(1.75))
             self._font(para.add_run(f"{label}\t"), self.s.cover_font, 12)
             r = para.add_run(value)
             self._font(r, self.s.cover_font, 12, bold=True)
@@ -381,13 +402,13 @@ class ReportBuilder:
                 _apply_num(p, num_id, ilvl)
                 list_ctx["first"] = False
             else:
-                p.paragraph_format.left_indent = Inches(0.5 + 0.25 * ilvl)
-            p.paragraph_format.space_after = Pt(3)
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        elif justify:
-            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                p.paragraph_format.left_indent = Inches(list_ctx.get("left", self.s.list_text_indent) + 0.25 * ilvl)
+            p.paragraph_format.space_after = Pt(self.s.list_item_after)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY if justify and self.s.justify else WD_ALIGN_PARAGRAPH.LEFT
+        else:
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY if justify and self.s.justify else WD_ALIGN_PARAGRAPH.LEFT
         if list_ctx is None and container is self.doc and self._in_question():
-            p.paragraph_format.left_indent = Inches(0.25)
+            p.paragraph_format.left_indent = Inches(self.s.body_indent)
         return p
 
     def _in_question(self) -> bool:
@@ -464,8 +485,11 @@ class ReportBuilder:
             inlines = self._strip_question_prefix(inlines)
         else:
             p = container.add_paragraph(style=f"Heading {level}")
-            if self._in_question():
-                p.paragraph_format.left_indent = Inches(0.25)
+            if level == 3 and self.s.h3_bulleted:
+                # "• Binary Weighted Resistor DAC": bullet at 0.25 in, text at 0.5 in.
+                if self._h3_bullets is None:
+                    self._h3_bullets = self.num.bullet(base_left=720)
+                _apply_num(p, self._h3_bullets, 0)
         self._inlines(p, inlines, {})
 
     @staticmethod
@@ -480,18 +504,21 @@ class ReportBuilder:
 
     def _list(self, container, items, attrs, list_ctx) -> None:
         level = 0 if list_ctx is None else list_ctx["lvl"] + 1
+        # Lists inside table cells start near the cell edge rather than at the page list indent.
+        left = 0.25 if container is not self.doc else self.s.list_text_indent
+        base = int(left * 1440)
         if attrs is None:
-            num_id = self.num.bullet()
+            num_id = self.num.bullet(base_left=base)
         else:
             start, style, _delim = attrs
-            num_id = self.num.ordered(style["t"], start)
+            num_id = self.num.ordered(style["t"], start, base_left=base)
         for item in items:
-            ctx = {"num": num_id, "lvl": level, "first": True}
+            ctx = {"num": num_id, "lvl": level, "first": True, "left": left}
             for sub in item:
                 self._block(container, sub, ctx)
         # breathing room after the whole list
         if list_ctx is None and container.paragraphs:
-            container.paragraphs[-1].paragraph_format.space_after = Pt(8)
+            container.paragraphs[-1].paragraph_format.space_after = Pt(self.s.para_after)
 
     def _deflist(self, container, items, list_ctx) -> None:
         # "**Term** - definition" bullets, as used in the assignment samples.
@@ -638,7 +665,7 @@ class ReportBuilder:
             if m:
                 val, unit = float(m.group(1)), m.group(2) or "px"
                 inches = {
-                    "%": CONTENT_W * val / 100,
+                    "%": FIGURE_W * val / 100,
                     "in": val,
                     "cm": val / 2.54,
                     "mm": val / 25.4,
@@ -651,10 +678,10 @@ class ReportBuilder:
         w_in, h_in = w_px / dpi, h_px / dpi
         if inline:
             return Inches(min(w_in, 1.5))
-        scale = min(1.0, CONTENT_W / w_in, MAX_IMG_H / h_in)
+        scale = min(1.0, FIGURE_W / w_in, MAX_IMG_H / h_in)
         # Small screenshots look lost on the page; bring tiny images up to at least half width.
-        if w_in * scale < CONTENT_W * 0.5:
-            scale = min(CONTENT_W * 0.5 / w_in, MAX_IMG_H / h_in)
+        if w_in * scale < FIGURE_W * 0.5:
+            scale = min(FIGURE_W * 0.5 / w_in, MAX_IMG_H / h_in)
         return Inches(w_in * scale)
 
     def _figure(self, container, c) -> None:
@@ -698,6 +725,7 @@ class ReportBuilder:
     # ---- tables
 
     def _table(self, container, c) -> None:
+        """Master table style: navy header with white bold text, banded rows, light grey grid, Calibri 11."""
         _attr, caption, colspecs, head, bodies, foot = c
         rows = []
         for row in head[1]:
@@ -722,17 +750,21 @@ class ReportBuilder:
             self._inlines(cp, cap_inlines, {"italic": True})
 
         table = container.add_table(rows=len(rows), cols=ncols)
-        table.style = self.doc.styles["Table Grid"]
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.autofit = False
+        self._table_borders(table)
 
-        widths = [spec[1].get("c") if spec[1]["t"] == "ColWidth" else None for spec in colspecs]
-        if all(widths):
-            total = sum(widths)
-            widths = [CONTENT_W * 0.95 * w / total for w in widths]
-        else:
-            widths = [CONTENT_W * 0.95 / ncols] * ncols
-
+        widths = self._column_widths(colspecs, rows, ncols)
+        body_i = 0
         for r_i, (is_head, cells) in enumerate(rows):
+            band = None
+            if is_head:
+                band = TABLE_HEAD_FILL
+                trpr = table.rows[r_i]._tr.get_or_add_trPr()
+                trpr.append(OxmlElement("w:tblHeader"))
+            else:
+                band = TABLE_BAND_FILL if body_i % 2 == 1 else None
+                body_i += 1
             col = 0
             for cell in cells:
                 _cattr, align, _rowspan, colspan, blocks = cell
@@ -741,12 +773,8 @@ class ReportBuilder:
                 target = table.cell(r_i, col)
                 if colspan > 1 and col + colspan - 1 < ncols:
                     target = target.merge(table.cell(r_i, col + colspan - 1))
-                self._cell(target, blocks, is_head, align["t"])
+                self._cell(target, blocks, is_head, align["t"], first_col=(col == 0), fill=band)
                 col += colspan
-            if is_head:
-                trpr = table.rows[r_i]._tr.get_or_add_trPr()
-                hdr = OxmlElement("w:tblHeader")
-                trpr.append(hdr)
 
         for row in table.rows:
             for i, cell in enumerate(row.cells[:ncols]):
@@ -755,29 +783,66 @@ class ReportBuilder:
         spacer = container.add_paragraph()
         spacer.paragraph_format.space_after = Pt(4)
 
-    def _cell(self, cell, blocks, is_head: bool, align: str) -> None:
-        first = cell.paragraphs[0]
-        # Render into the cell, then move the first rendered paragraph's content into the
-        # pre-existing empty paragraph so there is no blank line at the top of the cell.
-        before = len(cell.paragraphs)
+    def _column_widths(self, colspecs, rows, ncols) -> list[float]:
+        total_w = CONTENT_W * 0.97
+        given = [spec[1].get("c") if spec[1]["t"] == "ColWidth" else None for spec in colspecs]
+        if all(given):
+            return [total_w * w / sum(given) for w in given]
+        # Size columns by how much text they hold, so a short label column stays narrow.
+        lengths = [1.0] * ncols
+        for _is_head, cells in rows:
+            for i, cell in enumerate(cells[:ncols]):
+                lengths[i] = max(lengths[i], len(_plain_text(cell[4])))
+        weights = [min(max(n, 8), 60) ** 0.75 for n in lengths]
+        return [total_w * w / sum(weights) for w in weights]
+
+    @staticmethod
+    def _table_borders(table) -> None:
+        tblpr = table._tbl.tblPr
+        borders = OxmlElement("w:tblBorders")
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            el = OxmlElement(f"w:{side}")
+            el.set(qn("w:val"), "single")
+            el.set(qn("w:sz"), "4")
+            el.set(qn("w:space"), "0")
+            el.set(qn("w:color"), TABLE_BORDER)
+            borders.append(el)
+        tblpr.append(borders)
+        mar = OxmlElement("w:tblCellMar")
+        for side, val in (("top", 100), ("left", 115), ("bottom", 100), ("right", 115)):
+            el = OxmlElement(f"w:{side}")
+            el.set(qn("w:w"), str(val))
+            el.set(qn("w:type"), "dxa")
+            mar.append(el)
+        tblpr.append(mar)
+
+    def _cell(self, cell, blocks, is_head: bool, align: str, first_col: bool, fill: str | None) -> None:
+        placeholder = cell.paragraphs[0]
         for b in blocks:
             self._block(cell, b, None)
-        new = cell.paragraphs[before:]
-        if new:
-            src = new[0]._p
-            for child in list(src):
-                first._p.append(child)
-            src.getparent().remove(src)
+        if len(cell.paragraphs) > 1:
+            placeholder._p.getparent().remove(placeholder._p)
+        if fill:
+            _shade(cell._tc.get_or_add_tcPr(), fill)
+        if is_head or first_col:
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         for p in cell.paragraphs:
-            p.paragraph_format.space_after = Pt(2)
-            p.paragraph_format.space_before = Pt(2)
-            p.alignment = {
-                "AlignCenter": WD_ALIGN_PARAGRAPH.CENTER,
-                "AlignRight": WD_ALIGN_PARAGRAPH.RIGHT,
-            }.get(align, WD_ALIGN_PARAGRAPH.LEFT)
-            if is_head and self.s.table_header_bold:
-                for r in p.runs:
+            pf = p.paragraph_format
+            pf.space_after, pf.space_before, pf.line_spacing = Pt(0), Pt(0), 1.15
+            if is_head or first_col:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            else:
+                p.alignment = {
+                    "AlignCenter": WD_ALIGN_PARAGRAPH.CENTER,
+                    "AlignRight": WD_ALIGN_PARAGRAPH.RIGHT,
+                }.get(align, WD_ALIGN_PARAGRAPH.LEFT)
+            for r in p.runs:
+                r.font.name = self.s.table_font
+                _set_fonts(r._r, self.s.table_font)
+                r.font.size = Pt(self.s.table_size)
+                if is_head:
                     r.bold = True
+                    r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
     # ---- code
 

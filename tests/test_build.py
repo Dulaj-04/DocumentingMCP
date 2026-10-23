@@ -61,12 +61,32 @@ def test_assignment_numbers_questions_but_not_references(isolated_home):
     res = _build("assignment", "assignment.md", isolated_home)
     d = docx.Document(res["docx"])
     questions = [p for p in d.paragraphs if p.style.name == "Heading 1"]
-    assert len(questions) == 3
+    assert len(questions) == 4
     assert all(q._p.pPr.numPr is not None for q in questions)
     assert questions[0].text.startswith("Define a Digital-to-Analog")
     refs = [p for p in d.paragraphs if p.text == "References"]
     assert refs and refs[0].style.name == "Heading 2"
-    assert _xml(res["docx"]).count("<m:oMath>") >= 6
+    xml = _xml(res["docx"])
+    assert xml.count("<m:oMath>") >= 6
+
+
+def test_assignment_matches_master_format(isolated_home):
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Inches
+
+    res = _build("assignment", "assignment.md", isolated_home)
+    d = docx.Document(res["docx"])
+    sec = d.sections[0]
+    assert sec.left_margin == Inches(0.5) and sec.right_margin == Inches(0.5)
+    body = [p for p in d.paragraphs if p.text.startswith("A Digital-to-Analog Converter (DAC) is")][0]
+    assert body.alignment == WD_ALIGN_PARAGRAPH.LEFT  # master is ragged-right
+    assert body.paragraph_format.left_indent == Inches(0.375)  # aligned with question text
+    bullet_heading = [p for p in d.paragraphs if p.text == "Binary Weighted Resistor DAC"][0]
+    assert bullet_heading._p.pPr.numPr is not None  # "• Heading"
+    xml = _xml(res["docx"])
+    assert 'w:fill="2C3E7A"' in xml and 'w:fill="EDF0F8"' in xml  # navy header, banded rows
+    header_run = d.tables[0].cell(0, 0).paragraphs[0].runs[0]
+    assert header_run.bold and str(header_run.font.color.rgb) == "FFFFFF"
 
 
 def test_missing_image_is_reported(isolated_home):
