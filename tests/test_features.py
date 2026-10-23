@@ -43,15 +43,21 @@ def _full_demo(**kw):
 # --------------------------------------------------------------------------- end goal guard
 
 
-def test_default_output_is_still_the_master_format(home):
+def test_default_output_is_the_master_format_with_page_numbers(home):
     res = server.create_document(template="assignment", title="T", body_markdown="# Q\n\nAnswer.\n")
     d = docx.Document(res["docx"])
-    assert len(d.sections) == 1  # no extra section, so no header/footer/page numbers
-    assert not d.sections[0].footer.paragraphs[0].text
+    assert len(d.sections) == 2  # cover section + body section
+    assert "PAGE" not in d.sections[0].footer._element.xml  # cover is never numbered
+    assert "PAGE" in d.sections[1].footer._element.xml  # page numbers are on by default
     xml = _xml(res["docx"])
     assert "TOC" not in xml and "SEQ" not in xml
     with zipfile.ZipFile(res["docx"]) as z:
         assert b"updateFields" not in z.read("word/settings.xml")
+
+
+def test_page_numbers_can_be_switched_off(home):
+    res = server.create_document(template="assignment", title="T", body_markdown="# Q\n\nA.\n", page_numbers="none")
+    assert len(docx.Document(res["docx"]).sections) == 1
 
 
 # --------------------------------------------------------------------------- sources
@@ -244,3 +250,86 @@ def test_checker_flags_ai_style(home):
     for expected in ("crucial", "seamless", "leverage", "robust", "delve", "landscape", "today's world",
                      "worth noting", "Furthermore/Moreover", "summary line"):
         assert expected in msgs, expected
+
+
+# --------------------------------------------------------------------------- figure review and approval
+
+
+FIG_BODY = """# Q
+
+The output is in @fig:good.
+
+```{.plot #fig:good caption="Output voltage against input code"}
+x_label: Input code D
+y_label: "Output voltage (V)"
+series:
+  - {label: ideal, x: [0, 1, 2, 3], y: [0, 1, 2, 3]}
+```
+
+```{.plot}
+x_label: Time
+series:
+  - {x: [0, 1, 2], y: [1, 2, 3]}
+  - {x: [0, 1, 2], y: [2, 3, 4]}
+```
+
+```{.diagram #fig:flow caption="Scan loop"}
+flowchart TD
+  A[Start] --> B{Device ready?}
+  B --> C[Send]
+  B --> A
+  Z[Lonely block]
+```
+"""
+
+
+def test_figures_need_student_approval(home):
+    res = server.create_document(template="assignment", title="T", body_markdown=FIG_BODY)
+    assert "action_required" in res and len(res["figures"]) == 3
+    review = server.review_figures(res["docx"])
+    assert review["all_approved"] is False and len(review["pending"]) == 3
+    by_key = {f["key"]: f for f in review["figures"]}
+    assert by_key["fig:good"]["issues"] == []  # labelled, captioned, referenced, units given
+    bad_plot = " | ".join(by_key["figure-2"]["issues"])
+    for expected in ("no unit", "Missing y label", "legend label", "No caption", "never referred"):
+        assert expected in bad_plot, expected
+    flow = " | ".join(by_key["fig:flow"]["issues"])
+    assert "unlabelled branches" in flow and "Lonely block" in flow and "never referred" in flow
+    assert Path(by_key["fig:good"]["png"]).is_file()
+
+    # exporting and the checker are blocked until the student approves
+    assert "not yet approved" in server.export_pdf(res["docx"])["error"]
+    assert server.check_document(res["docx"])["summary"]["ready_to_submit"] is False
+
+    out = server.approve_figures(res["docx"], ["Figure 1"])
+    assert out["approved"] == ["Figure 1"]
+    assert server.review_figures(res["docx"])["figures"][0]["approved"] is True
+
+    # changing an approved figure sends it back for approval
+    server.replace_text(res["docx"], "y: [0, 1, 2, 3]", "y: [0, 1.1, 2, 3]")
+    assert server.review_figures(res["docx"])["figures"][0]["approved"] is False
+
+    server.approve_figures(res["docx"], ["all"])
+    assert server.review_figures(res["docx"])["all_approved"] is True
+
+
+def test_bar_chart_keeps_category_labels(home):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    from documenting_mcp.plots import make_plot
+    import matplotlib.pyplot as plt
+
+    seen = {}
+    orig = plt.Figure.savefig
+
+    def spy(self, *a, **k):
+        seen["labels"] = [t.get_text() for t in self.axes[0].get_xticklabels()]
+        return orig(self, *a, **k)
+
+    plt.Figure.savefig = spy
+    try:
+        make_plot({"type": "bar", "categories": ["GS", "FD", "NR"], "y_label": "Iterations", "series": [{"y": [38, 9, 3]}]}, home / "b.png")
+    finally:
+        plt.Figure.savefig = orig
+    assert seen["labels"] == ["GS", "FD", "NR"]

@@ -98,6 +98,22 @@ series:
 - Use `spreadsheet_to_table` to turn the student's Excel/CSV readings into a pipe table. Tables are
   rendered as plain Word tables (thin black grid, bold header row, no colours).
 
+## Figures must be approved by the student
+
+Every generated plot, block diagram, flowchart and circuit starts as **pending**.
+
+1. Call `review_figures`. For each figure it gives the PNG and an automatic critique: missing axis
+   units, text too small to read, unlabelled branches or components, no caption, not referred to.
+2. Look at each image yourself and judge it critically. Is it technically correct (signs, polarities,
+   axis ranges, values)? Does it answer what the question asks? Is anything cluttered or misleading?
+3. Show the student every figure, with the automatic issues and your own critique, and ask whether
+   to keep it or what to change.
+4. Make the changes with `update_section`, then review again.
+5. Call `approve_figures` **only after the student explicitly approves**. Never approve on their behalf.
+
+PDF export and `check_document` treat unapproved figures as blocking errors. Changing a figure
+later makes it pending again.
+
 ## After creating the document
 
 - Run `check_document`, and `check_similarity` against the lecture notes if they were used.

@@ -140,10 +140,10 @@ def make_plot(spec: dict, out_path: Path, base_dir: Path | None = None) -> Path:
         else:
             ax.plot(x, y, linestyle=s.get("style", "-"), marker=s.get("marker") or None, markersize=float(s.get("marker_size", 4)), **kw)
 
-    if "categories" in spec:
-        ax.set_xticks(range(len(spec["categories"])), spec["categories"])
     ax.set_xscale(spec.get("xscale", "linear"))
     ax.set_yscale(spec.get("yscale", "linear"))
+    if "categories" in spec:  # after set_*scale, which resets tick labels
+        ax.set_xticks(range(len(spec["categories"])), spec["categories"])
     if spec.get("x_label"):
         ax.set_xlabel(spec["x_label"])
     if spec.get("y_label"):

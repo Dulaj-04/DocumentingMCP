@@ -125,7 +125,7 @@ def check_document(
         issues.append({"severity": sev, "where": where, "message": msg})
 
     for w in build_warnings:
-        add("error" if re.search(r"not found|missing|no matching|points to nothing|could not", w, re.I) else "warning", "build", w)
+        add("error" if re.search(r"not found|missing|no matching|points to nothing|could not|not approved", w, re.I) else "warning", "build", w)
 
     paras = _body_paragraphs(docx_path)
     text = "\n".join(t for _, t in paras)

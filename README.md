@@ -167,7 +167,23 @@ References are saved to your library once and reused in later documents. The tex
 and an IEEE reference list is built at the end. Unless you ask otherwise, only sources you actually
 cite are listed.
 
-### 7. Change part of a document without redoing it
+### 7. Review and approve every figure
+
+Generated graphs, diagrams and circuits are **not final until you approve them**. After the
+document is made, the AI shows you each figure along with a critical review. The review comes from
+automatic checks (axis units, text size, unlabelled branches or components, missing captions,
+figures never mentioned in the text) plus the AI's own technical look at the figure.
+
+> Show me the figures for review.
+
+> Figure 2 is fine. In Figure 1, label the No branch and make the text bigger.
+
+> Approve figures 1 and 3.
+
+You can't export the PDF, and the pre-submission check won't pass, until every figure is approved.
+If a figure changes after you approve it, it needs your approval again.
+
+### 8. Change part of a document without redoing it
 
 > In my DAC assignment, rewrite question 2 in simpler words.
 
@@ -178,7 +194,7 @@ cite are listed.
 
 Only the part you mention changes. Formatting, numbering and references update automatically.
 
-### 8. Check it before you submit
+### 9. Check it before you submit
 
 > Check my assignment. The limit is 6 pages and 1500 words. Also compare it with the
 > lecture notes for similarity.
@@ -191,7 +207,7 @@ You get a list of problems to fix:
 
 Ask the AI to fix them, then check again.
 
-### 9. Get the PDF
+### 10. Get the PDF
 
 > Export it as a PDF.
 
@@ -200,13 +216,12 @@ first, so the PDF matches what you see in Word.
 
 ### Optional extras
 
-These are all off by default, because the reference assignment doesn't use them. Ask for them when a
-module wants them:
+Ask for these when a module wants them:
 
 | Ask for | What you get |
 |---|---|
 | "add a table of contents" | Contents page after the cover (also lists of figures and tables) |
-| "add page numbers" | Page numbers at the bottom (the cover stays unnumbered) |
+| "no page numbers" / "page numbers on the right" | Page numbers are **on by default** (bottom centre, never on the cover) |
 | "put the module code in the header" | Running header on every page except the cover |
 | "number all the equations" | (1), (2), … on the right of each equation |
 | "caption every figure" | "Figure n: …" under every picture |
@@ -258,12 +273,13 @@ a student rather than an AI, are in [`src/documenting_mcp/guides.py`](src/docume
 | Drawings | `make_plot`, `make_diagram`, `make_circuit` |
 | References | `lookup_reference` (DOI/ISBN/URL), `add_reference`, `list_references`, `remove_reference` |
 | Editing | `get_document_source`, `update_section`, `insert_section`, `delete_section`, `replace_text`, `update_document_settings` |
+| Figures | `review_figures` (critique and preview), `approve_figures` (the student's approval) |
 | Checking | `check_document`, `check_similarity` |
 | Output | `export_pdf` (with Word installed, it refreshes all numbering first) |
 
-**Optional extras.** These are off by default, because the reference assignment does not use them:
-`toc`, `list_of_figures`, `list_of_tables`, `page_numbers`, `header_text`, `footer_text`,
-`figure_captions`, `number_equations` and `table_style="shaded"`.
+**Defaults.** Page numbers are on (bottom centre, never on the cover). Every generated figure needs
+your approval. **Optional extras:** `toc`, `list_of_figures`, `list_of_tables`, `header_text`,
+`footer_text`, `figure_captions`, `number_equations` and `table_style="shaded"`.
 
 ## Good to know
 

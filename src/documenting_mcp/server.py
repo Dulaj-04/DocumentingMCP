@@ -33,7 +33,9 @@ mcp = MCPServer(
         "(3) get_writing_guide for the template and follow it. "
         "(4) list_files for screenshots; use ```plot / ```diagram / ```circuit blocks for graphs, block "
         "diagrams and circuits; spreadsheet_to_table for data; lookup_reference/add_reference + [@key] for citations. "
-        "(5) create_document with the full Markdown body. "
+        "(5) create_document with the full Markdown body (page numbers are on by default). "
+        "(5b) review_figures: critically review every generated figure, show each one to the student and "
+        "call approve_figures only after the student explicitly approves it. "
         "(6) check_document (and check_similarity against the notes) and fix issues with update_section / "
         "replace_text instead of regenerating. Report the saved file path to the student."
     ),
@@ -159,9 +161,11 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
         toc=bool(opts.get("toc")),
         list_of_figures=bool(opts.get("list_of_figures")),
         list_of_tables=bool(opts.get("list_of_tables")),
-        page_numbers=opts.get("page_numbers") or "none",
+        page_numbers=opts.get("page_numbers") or "bottom-center",
         header_text=opts.get("header_text") or "",
         footer_text=opts.get("footer_text") or "",
+        approvals=dict(src.approvals),
+        body_markdown=src.body_markdown,
     )
     result = build_report(
         style=style,
@@ -174,6 +178,18 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
     )
     save_source(result.path, src)
     response: dict = {"docx": str(result.path), "warnings": result.warnings}
+    pending = [f for f in result.figures if not f.approved]
+    if result.figures:
+        response["figures"] = [
+            {"figure": f.as_dict()["label"], "key": f.key, "kind": f.kind, "caption": f.caption, "png": f.png,
+             "digest": f.digest, "approved": f.approved, "issues": f.issues}
+            for f in result.figures
+        ]
+    if pending:
+        response["action_required"] = (
+            f"{len(pending)} generated figure(s) need the student's approval. Show each PNG to the student with "
+            "the issues listed, fix what they ask for, and call approve_figures only after they explicitly approve."
+        )
     figs = build_opts.figures_dir
     if figs.is_dir() and any(figs.iterdir()):
         response["figures_folder"] = str(figs)
@@ -204,7 +220,7 @@ def create_document(
     toc: bool = False,
     list_of_figures: bool = False,
     list_of_tables: bool = False,
-    page_numbers: PageNumbers = "none",
+    page_numbers: PageNumbers = "bottom-center",
     header_text: str = "",
     footer_text: str = "",
     table_style: Literal["grid", "shaded"] = "grid",
@@ -232,7 +248,9 @@ def create_document(
     number_equations: number every display equation (1), (2), ... flush right (\\tag{n} / \\notag per equation).
     scientific_equations: ISO 80000-2 typesetting (upright descriptive subscripts and units). Leave on.
     toc / list_of_figures / list_of_tables: add these after the cover page (off in the master format).
-    page_numbers: none (master) | bottom-center | bottom-right. The cover never shows a number.
+    Generated figures (plot/diagram/circuit) start unapproved: review them with the student (see
+    review_figures) before exporting.
+    page_numbers: bottom-center (default) | bottom-right | none. The cover never shows a number.
     header_text / footer_text: optional running header/footer text on body pages.
     table_style: grid (default: plain Word Table Grid, black lines, no colours, bold header) | shaded
         (navy header with banded rows).
@@ -373,11 +391,78 @@ def update_document_settings(
     return _rebuild(docx_path, src, export_pdf, "Settings updated.")
 
 
+def _figure_status(docx_path: str) -> tuple[DocSource, list[dict]]:
+    """Current generated figures with critique and approval state. Builds into a scratch copy so the
+    student's .docx is not touched; PNG paths point at the document's own figures folder."""
+    src = load_source(docx_path)
+    real = Path(docx_path).expanduser()
+    tmpdir = Path(tempfile.mkdtemp())
+    try:
+        figures = _build(DocSource(**{**src.__dict__}), out_path=tmpdir / real.name).get("figures", [])
+        keep = real.parent / f"{real.stem}_figures"
+        keep.mkdir(exist_ok=True)
+        for f in figures:  # keep the preview images next to the document
+            target = keep / Path(f["png"]).name
+            shutil.copyfile(f["png"], target)
+            f["png"] = str(target)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    return src, figures
+
+
 @mcp.tool()
-def export_pdf(docx_path: str) -> dict:
+def review_figures(docx_path: str) -> dict:
+    """Critically review every generated figure (plots, block diagrams, flowcharts, circuits) before the
+    student approves it. Returns, for each figure, the PNG to show the student, an automatic critique
+    (missing axis units, unreadable text size, unlabelled components or branches, no caption, never
+    referred to in the text, ...) and whether it is approved.
+
+    How to use: look at each PNG yourself and add your own critical judgement (is it technically
+    correct? does it answer the question? is anything misleading or cluttered?). Present the image and
+    all issues to the student, fix what they ask for with update_section, and call approve_figures only
+    when the student says the figure is OK."""
+    _src, figures = _figure_status(docx_path)
+    pending = [f["figure"] for f in figures if not f["approved"]]
+    return {
+        "figures": figures,
+        "pending": pending,
+        "all_approved": not pending,
+        "instruction": "Never approve on the student's behalf. Ask them about each pending figure.",
+    }
+
+
+@mcp.tool()
+def approve_figures(docx_path: str, figures: list[str]) -> dict:
+    """Record the STUDENT's approval of generated figures. Call only after the student explicitly approves.
+    figures: e.g. ["Figure 1", "fig:transfer"] or ["all"]. If a figure is changed later it becomes pending
+    again and needs a fresh approval."""
+    src, current = _figure_status(docx_path)
+    wanted = {f.strip().lower() for f in figures}
+    approved = []
+    for f in current:
+        if "all" in wanted or {f["figure"].lower(), f["key"].lower()} & wanted:
+            src.approvals[f["key"]] = f["digest"]
+            approved.append(f["figure"])
+    save_source(Path(docx_path).expanduser(), src)
+    still = [f["figure"] for f in current if f["figure"] not in approved and not f["approved"]]
+    return {"approved": approved, "still_pending": still}
+
+
+@mcp.tool()
+def export_pdf(docx_path: str, force: bool = False) -> dict:
     """Save a PDF of a document. On Windows with MS Word, Word refreshes the table of contents, figure
-    numbers and cross-references first (and saves them into the .docx)."""
+    numbers and cross-references first (and saves them into the .docx). Refuses while generated
+    figures are still awaiting the student's approval, unless force=True (only if the student insists)."""
     path = Path(docx_path).expanduser()
+    if not force:
+        try:
+            _src, figs = _figure_status(docx_path)
+            pending = [f["figure"] for f in figs if not f["approved"]]
+            if pending:
+                return {"error": "Figures not yet approved by the student: " + ", ".join(pending)
+                        + ". Run review_figures, get approval, then export again."}
+        except FileNotFoundError:
+            pass
     try:
         pdf = export.to_pdf(path)
         return {"pdf": str(pdf), "pages": export.page_count(pdf)}
@@ -602,7 +687,13 @@ def check_document(
         src = load_source(path)
         markdown, template = src.body_markdown, src.template
         tmp = Path(tempfile.mkdtemp()) / path.name
-        warnings = _build(src, out_path=tmp)["warnings"]
+        built = _build(src, out_path=tmp)
+        warnings = list(built["warnings"])
+        for f in built.get("figures", []):
+            for issue in f["issues"]:
+                warnings.append(f"{f['figure']} ({f['kind']}): {issue}")
+            if not f["approved"]:
+                warnings.append(f"{f['figure']} ({f['kind']}) is not approved by the student yet (review_figures).")
         shutil.rmtree(tmp.parent, ignore_errors=True)
     except FileNotFoundError:
         pass

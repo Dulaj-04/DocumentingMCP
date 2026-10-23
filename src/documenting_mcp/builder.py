@@ -60,9 +60,11 @@ class BuildOptions:
     toc: bool = False
     list_of_figures: bool = False
     list_of_tables: bool = False
-    page_numbers: str = "none"  # none | bottom-center | bottom-right
+    page_numbers: str = "bottom-center"  # bottom-center (default) | bottom-right | none
     header_text: str = ""
     footer_text: str = ""
+    approvals: dict[str, str] = field(default_factory=dict)  # figure key -> approved content digest
+    body_markdown: str = ""  # to tell whether a figure is referred to in the text
 
 
 VISUAL_CLASSES = {
@@ -78,6 +80,7 @@ _REFS_HEADING = re.compile(r"^(references|bibliography|reference list)$", re.I)
 class BuildResult:
     path: Path
     warnings: list[str] = field(default_factory=list)
+    figures: list = field(default_factory=list)  # FigureRecord for every generated figure
 
 
 # --------------------------------------------------------------------------- low-level XML helpers
@@ -324,6 +327,7 @@ class ReportBuilder:
         self._cite_order: list[str] = []
         self._refs_header_block = None
         self._visual_n = 0
+        self.figures: list = []
         self._front_placeholder = None
         self._tmp = tempfile.TemporaryDirectory()
         self._setup_page()
@@ -1213,9 +1217,27 @@ class ReportBuilder:
         p.paragraph_format.space_after = Pt(6)
         number = block.get("_fig_no")
         p.paragraph_format.keep_with_next = number is not None
-        p.add_run().add_picture(str(out), width=self._img_width(out, size_kv))
+        width = self._img_width(out, size_kv)
+        p.add_run().add_picture(str(out), width=width)
         if number is not None:
             self._caption(container, "Figure", number, attr[0], block.get("_cap") or kv.get("caption", ""))
+        self._record_figure(kind, attr, text, kv, out, width.inches, number)
+
+    def _record_figure(self, kind, attr, text, kv, out: Path, width_in: float, number) -> None:
+        from .figure_review import FigureRecord, critique, digest
+
+        key = attr[0] or f"figure-{self._visual_n}"
+        dg = digest(kind, text, kv)
+        referenced = bool(attr[0]) and f"@{attr[0]}" in self.opt.body_markdown
+        rec = FigureRecord(
+            key=key, number=number, kind=kind, caption=kv.get("caption", ""), png=str(out), digest=dg,
+            display_width_in=round(width_in, 2), approved=self.opt.approvals.get(key) == dg,
+        )
+        try:
+            rec.issues = critique(kind, text, kv, out, width_in, referenced)
+        except Exception as exc:
+            rec.issues = [f"Automatic review failed: {exc}"]
+        self.figures.append(rec)
 
     # ---- tables
 
@@ -1391,7 +1413,7 @@ def build_report(
     b.add_cover(cover)
     b.add_markdown(markdown)
     path = b.save(out_path)
-    return BuildResult(path=path, warnings=b.warnings)
+    return BuildResult(path=path, warnings=b.warnings, figures=b.figures)
 
 
 __all__ = ["CoverInfo", "BuildOptions", "BuildResult", "ReportBuilder", "build_report", "M"]

@@ -188,3 +188,9 @@ left-aligned cells, and Word's default cell padding.
 - **Table of contents / lists of figures and tables** are placed after the cover on their own page.
 - **Page numbers and headers/footers** use a second section, so the cover page stays blank and
   numbering starts at 1.
+
+## 11. User decisions (later)
+
+- **Page numbers are mandatory.** They are on by default, bottom centre, and the cover is never numbered.
+- **Generated figures must be approved by the student** after a critical review (`review_figures` /
+  `approve_figures`). Unapproved figures block PDF export and the pre-submission check.

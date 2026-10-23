@@ -29,6 +29,7 @@ class DocSource:
     intake: str = ""
     options: dict = field(default_factory=dict)
     references: list[dict] = field(default_factory=list)
+    approvals: dict = field(default_factory=dict)  # figure key -> content digest the student approved
 
 
 def sidecar_for(docx_path: str | Path) -> Path:
