@@ -13,9 +13,11 @@ step by step, and this server lays everything out in the department's house styl
 <sub>Sample output for a placeholder student, built from <a href="examples/full_assignment.md"><code>examples/full_assignment.md</code></a>
 and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub>
 
-> **New in 1.1: live editing in Word.** Keep the document open in Word on Windows and ask for a
-> change: only that section is swapped in, and everything you typed by hand stays.
-> [How it works ↓](#8-change-part-of-a-document) · [Changelog](CHANGELOG.md)
+> **What's new:** the AI now picks which of your images to use, sizes them so they stay readable without
+> breaking the layout, places each one where it fits and adds a line of text under it
+> ([images ↓](#3-lab-reports-with-your-own-screenshots-photos-and-code)). Since 1.1 it can also edit a
+> document that is open in Word ([live editing ↓](#8-change-part-of-a-document)).
+> [Changelog](CHANGELOG.md)
 
 **Contents:** [Features](#features) · [How it works](#how-it-works) · [Gallery](#gallery) ·
 [Getting started](#getting-started-windows) · [How to use it](#how-to-use-it) · [Tools](#tools) ·
@@ -38,7 +40,7 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 | ✏️ **Edit, don't regenerate** | Change one question or section; everything else stays exactly as it was. |
 | 🪟 **Live editing in Word** | With the document open in Word (Windows), changes appear in the open window and your own hand edits are kept. A closed file you edited by hand is never overwritten without asking. |
 | 🔍 **Pre-submission check** | Spelling (British is fine), "5V"-style units, placeholders, empty sections, missing questions, page/word limits, **AI-sounding wording**, and similarity with your lecture notes. |
-| 🖼️ **Image library and layout** | Your screenshots and photos are collected in one folder, named by what they show, and placed centred or side by side at matching heights with (a)/(b) labels. |
+| 🖼️ **Smart image use** | Works from your own image folder in Downloads. It decides which images are worth including, where each belongs, how large it should be, and adds a line of text under it. Side by side at matching heights when they belong together. |
 | 🗂️ **Plain Word tables** | Black grid and a bold header, without the coloured "AI look" (a shaded style is optional). |
 
 ## How it works
@@ -284,6 +286,11 @@ Result → Discussion → Conclusion.
 **The AI decides which images to use, and where.** It works from your own image folder in Downloads
 (the default is `Downloads\KDocs Images`; tell it if you made a folder of your own and it remembers).
 
+<table>
+<tr>
+<td width="38%"><img src="docs/images/image-workflow.png" alt="How the AI decides which images to use and where"></td>
+<td>
+
 1. It looks at each image, gives it a descriptive name (`rc-filter-circuit.png`, not `IMG_2041.jpg`)
    and records one sentence about what it shows. If it can't tell, it asks you.
 2. It decides **whether** an image belongs. An image has to do a job the words can't, such as showing
@@ -294,6 +301,10 @@ Result → Discussion → Conclusion.
 4. It shows you the plan (image → section → after which paragraph) and places the images once you agree.
 5. Every image gets **a small line of text below it** saying what it shows, and the text mentions the
    image before it appears ("as shown in Figure 2").
+
+</td>
+</tr>
+</table>
 
 > My lab photos are in Downloads\ET2013 Lab 4. Use whichever ones fit the report and put each one
 > where it belongs. Show me the plan first.
@@ -311,6 +322,10 @@ Result → Discussion → Conclusion.
 | Portrait or square photo | Limited by height, so it never takes over the page |
 | Anything | Never taller than about half a page, and never enlarged until it turns blurry |
 | Low-resolution image | Kept at a sensible size and **flagged**, so you can supply a bigger original |
+
+<p align="center"><img src="docs/images/image-sizing.png" width="700" alt="A landscape photo, a screenshot, a portrait photo and a tiny image, each sized differently"></p>
+
+<sub>The same report with four kinds of image: each gets its own size, a line of text underneath, and its introducing sentence stays with it.</sub>
 
 You can also ask for a size: `{width=small|medium|large|full}` or a percentage. An over-tall size
 is reduced automatically and reported. In a side-by-side row, a warning appears if a screenshot is

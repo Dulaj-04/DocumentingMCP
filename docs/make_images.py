@@ -341,6 +341,59 @@ The signal was halved at each stage (@fig:stages).
     save(card(page.crop((0, int(h * 0.05), w, int(h * 0.42))), 760), "image-rows.png")
 
 
+def image_workflow() -> None:
+    render_flowchart(
+        """flowchart TD
+          A[/Your images in<br>a Downloads folder/] --> B[Look at each one<br>name + one-line description]
+          B --> C{Does it do a job<br>the words cannot?}
+          C -- No --> D([Left out,<br>you are told why])
+          C -- Yes --> E[Match to the section<br>that talks about it]
+          E --> F[Size it:<br>readable, not oversized]
+          F --> G[You approve<br>the placement plan]
+          G --> H[Placed after the<br>paragraph that introduces it]
+          H --> I([Small text<br>under the image])
+        """,
+        WORK / "imgflow.png",
+    )
+    save(card(Image.open(WORK / "imgflow.png"), 520), "image-workflow.png")
+
+
+def _labelled(size, colour, text, name):
+    im = Image.new("RGB", size, colour)
+    d = ImageDraw.Draw(im)
+    d.rectangle([6, 6, size[0] - 7, size[1] - 7], outline=(60, 60, 60), width=max(4, size[0] // 200))
+    f = font(max(24, size[0] // 18), bold=True)
+    for k, line in enumerate(text.split("\n")):
+        tw = d.textlength(line, font=f)
+        d.text(((size[0] - tw) / 2, size[1] / 2 - f.size + k * f.size * 1.3), line, fill=(40, 40, 40), font=f)
+    path = WORK / name
+    im.save(path)
+    return path
+
+
+def image_sizing() -> None:
+    """Four kinds of image, shown as the report would size them."""
+    os.environ["KDOCS_MCP_IMAGES"] = str(WORK / "Downloads" / "KDocs Images")
+    files = {
+        "photo": _labelled((4000, 3000), (205, 220, 238), "Landscape photo\n4000 x 3000 px", "photo.jpg"),
+        "shot": _labelled((1920, 1080), (232, 244, 214), "Screenshot\n1920 x 1080 px", "shot.png"),
+        "phone": _labelled((3000, 4000), (250, 224, 205), "Portrait photo\n3000 x 4000 px", "phone.jpg"),
+        "tiny": _labelled((300, 200), (250, 214, 228), "Tiny\n300 x 200", "tiny.png"),
+    }
+    md = "# Results\n\n" + "\n\n".join(
+        f"{lead}\n\n![{cap}]({Path(files[k]).name})" for k, lead, cap in (
+            ("photo", "A large landscape photo is held back.", "Landscape photo: about 60% of the width"),
+            ("shot", "A screenshot is shown wide.", "Screenshot: wide, so its text stays readable"),
+            ("phone", "A portrait photo is limited by height.", "Portrait photo: never taller than about half a page"),
+            ("tiny", "A tiny image is not blown up.", "Low-resolution image: kept modest and flagged"),
+        )
+    ) + "\n"
+    res = server.create_document(template="assignment", title="Sizing", filename="sizing", skip_planning=True,
+                                 body_markdown=md, assets_dir=str(WORK))
+    pgs = [Image.open(p_) for p_ in pages(res["docx"], "sizing")][1:]
+    save(row([card(i, 380) for i in pgs], gap=20), "image-sizing.png")
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     sample_pages()
@@ -353,4 +406,6 @@ if __name__ == "__main__":
     equations()
     tables_and_borders()
     image_rows()
+    image_workflow()
+    image_sizing()
     shutil.rmtree(WORK, ignore_errors=True)

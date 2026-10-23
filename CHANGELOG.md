@@ -11,6 +11,7 @@
   and reported.
 - `list_images` shows how each image would be displayed and any sizing notes.
 - Phone photos keep their JPEG type after being turned upright.
+- The sentence that introduces an image now stays on the same page as the image.
 
 ## 1.4.0
 

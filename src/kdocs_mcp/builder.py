@@ -1241,6 +1241,9 @@ class ReportBuilder:
             r.italic = True
             r.font.color.rgb = RGBColor(0xC0, 0, 0)
             return
+        prev = container.paragraphs[-1] if container.paragraphs else None
+        if prev is not None and 0 < len(prev.text) < 400 and not prev.style.name.startswith("Heading"):
+            prev.paragraph_format.keep_with_next = True  # the sentence that introduces an image stays with it
         p = container.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_before = Pt(6)
