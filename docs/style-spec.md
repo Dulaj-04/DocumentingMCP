@@ -40,7 +40,8 @@ Top to bottom, everything centered unless noted:
    Intake ; 42
    Submission Date ; 31/08/2026
    ```
-   - Separator is either ` ; ` or ` : ` (configurable). Values are plain in some samples and **bold** in others (configurable).
+   - The samples used ` ; ` or ` : ` separators. **Decision: no separator.** Labels are plain, values are
+     **bold**, and the values are aligned with a tab stop at 2.1 in.
    - Date format is `DD/MM/YYYY`.
 7. Page break.
 
