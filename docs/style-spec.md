@@ -172,7 +172,9 @@ Cover details use no separator; the values are bold (user decision).
 - Borders are single, 0.5 pt, **#BFBFBF**.
 - Cell padding is about 5 pt top and bottom and 6 pt left and right.
 
-These table rules now apply to every template.
+These shaded-table rules are now **optional** (`table_style="shaded"`). By user decision, the default is a plain
+Word "Table Grid" table: 0.5 pt black lines, no shading, body font and size, a bold header row,
+left-aligned cells, and Word's default cell padding.
 
 ## 10. Additions beyond the master (all opt-in or invisible in the default output)
 

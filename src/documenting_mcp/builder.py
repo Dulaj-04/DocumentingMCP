@@ -37,6 +37,7 @@ PAGE_W, PAGE_H = 8.5, 11.0
 MARGIN_TB, MARGIN_SIDE = 0.7, 0.5
 CONTENT_W = PAGE_W - 2 * MARGIN_SIDE
 FIGURE_W = CONTENT_W * 0.92
+# Optional "shaded" table style (navy header, banded rows); the default is plain Word "Table Grid".
 TABLE_HEAD_FILL, TABLE_BAND_FILL, TABLE_BORDER = "2C3E7A", "EDF0F8", "BFBFBF"
 MAX_IMG_H = 8.0
 _ALIGN = {"left": WD_ALIGN_PARAGRAPH.LEFT, "center": WD_ALIGN_PARAGRAPH.CENTER}
@@ -1219,7 +1220,8 @@ class ReportBuilder:
     # ---- tables
 
     def _table(self, container, c, number=None) -> None:
-        """Master table style: navy header with white bold text, banded rows, light grey grid, Calibri 11."""
+        """Plain Word "Table Grid" by default: thin black lines, no shading, body font, bold header row.
+        table_style="shaded" gives the navy-header / banded-row look instead."""
         _attr, caption, colspecs, head, bodies, foot = c
         rows = []
         for row in head[1]:
@@ -1243,15 +1245,16 @@ class ReportBuilder:
         self._table_borders(table)
 
         widths = self._column_widths(colspecs, rows, ncols)
+        shaded = self.s.table_style == "shaded"
         body_i = 0
         for r_i, (is_head, cells) in enumerate(rows):
             band = None
             if is_head:
-                band = TABLE_HEAD_FILL
+                band = TABLE_HEAD_FILL if shaded else None
                 trpr = table.rows[r_i]._tr.get_or_add_trPr()
                 trpr.append(OxmlElement("w:tblHeader"))
             else:
-                band = TABLE_BAND_FILL if body_i % 2 == 1 else None
+                band = TABLE_BAND_FILL if shaded and body_i % 2 == 1 else None
                 body_i += 1
             col = 0
             for cell in cells:
@@ -1272,7 +1275,8 @@ class ReportBuilder:
     def _column_widths(self, colspecs, rows, ncols) -> list[float]:
         total_w = CONTENT_W * 0.97
         given = [spec[1].get("c") if spec[1]["t"] == "ColWidth" else None for spec in colspecs]
-        if all(given):
+        # Pandoc reports equal widths for long pipe tables (from the |---|---| row); that is not a real choice.
+        if all(given) and max(given) - min(given) > 1e-6:
             return [total_w * w / sum(given) for w in given]
         # Size columns by how much text they hold, so a short label column stays narrow.
         lengths = [1.0] * ncols
@@ -1282,8 +1286,8 @@ class ReportBuilder:
         weights = [min(max(n, 8), 60) ** 0.75 for n in lengths]
         return [total_w * w / sum(weights) for w in weights]
 
-    @staticmethod
-    def _table_borders(table) -> None:
+    def _table_borders(self, table) -> None:
+        shaded = self.s.table_style == "shaded"
         tblpr = table._tbl.tblPr
         borders = OxmlElement("w:tblBorders")
         for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
@@ -1291,11 +1295,13 @@ class ReportBuilder:
             el.set(qn("w:val"), "single")
             el.set(qn("w:sz"), "4")
             el.set(qn("w:space"), "0")
-            el.set(qn("w:color"), TABLE_BORDER)
+            el.set(qn("w:color"), TABLE_BORDER if shaded else "000000")
             borders.append(el)
         tblpr.append(borders)
         mar = OxmlElement("w:tblCellMar")
-        for side, val in (("top", 100), ("left", 115), ("bottom", 100), ("right", 115)):
+        pads = (("top", 100), ("left", 115), ("bottom", 100), ("right", 115)) if shaded else \
+            (("top", 29), ("left", 108), ("bottom", 29), ("right", 108))  # Word's own Table Grid padding
+        for side, val in pads:
             el = OxmlElement(f"w:{side}")
             el.set(qn("w:w"), str(val))
             el.set(qn("w:type"), "dxa")
@@ -1308,14 +1314,17 @@ class ReportBuilder:
             self._block(cell, b, None)
         if len(cell.paragraphs) > 1:
             placeholder._p.getparent().remove(placeholder._p)
+        shaded = self.s.table_style == "shaded"
         if fill:
             _shade(cell._tc.get_or_add_tcPr(), fill)
-        if is_head or first_col:
+        if shaded and (is_head or first_col):
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        font = self.s.table_font if shaded else self.s.body_font
+        size = self.s.table_size if shaded else self.s.body_size
         for p in cell.paragraphs:
             pf = p.paragraph_format
-            pf.space_after, pf.space_before, pf.line_spacing = Pt(0), Pt(0), 1.15
-            if is_head or first_col:
+            pf.space_after, pf.space_before, pf.line_spacing = Pt(2), Pt(2), 1.0 if not shaded else 1.15
+            if shaded and (is_head or first_col):
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             else:
                 p.alignment = {
@@ -1323,12 +1332,13 @@ class ReportBuilder:
                     "AlignRight": WD_ALIGN_PARAGRAPH.RIGHT,
                 }.get(align, WD_ALIGN_PARAGRAPH.LEFT)
             for r in p.runs:
-                r.font.name = self.s.table_font
-                _set_fonts(r._r, self.s.table_font)
-                r.font.size = Pt(self.s.table_size)
+                r.font.name = font
+                _set_fonts(r._r, font)
+                r.font.size = Pt(size)
                 if is_head:
                     r.bold = True
-                    r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                    if shaded:
+                        r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
     # ---- code
 

@@ -40,7 +40,8 @@ class TemplateStyle:
     list_text_indent: float = 0.5  # where level-0 list text starts; the bullet hangs 0.25 in to its left
     list_item_after: float = 3
     h3_bulleted: bool = False  # "• Heading" style used for sub-topics in the master assignment
-    table_font: str = "Calibri"
+    table_style: str = "grid"  # grid = plain Word Table Grid (default) | shaded = navy header, banded rows
+    table_font: str = "Calibri"  # used by the shaded style only; grid tables use the body font
     table_size: float = 11
     code_font: str = "Consolas"
     code_size: float = 9.5

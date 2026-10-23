@@ -143,6 +143,7 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
         number_equations=opts.get("number_equations") or None,
         scientific_math=opts.get("scientific_equations", True),
         title_font=opts.get("title_font") or None,
+        table_style=opts.get("table_style") or None,
     )
     profile: Profile = load_profile()
     for key in ("name", "reg_no", "intake"):
@@ -206,6 +207,7 @@ def create_document(
     page_numbers: PageNumbers = "none",
     header_text: str = "",
     footer_text: str = "",
+    table_style: Literal["grid", "shaded"] = "grid",
     title_font: str = "",
     name: str = "",
     reg_no: str = "",
@@ -232,6 +234,8 @@ def create_document(
     toc / list_of_figures / list_of_tables: add these after the cover page (off in the master format).
     page_numbers: none (master) | bottom-center | bottom-right. The cover never shows a number.
     header_text / footer_text: optional running header/footer text on body pages.
+    table_style: grid (default: plain Word Table Grid, black lines, no colours, bold header) | shaded
+        (navy header with banded rows).
     title_font: override the cover title font (default Agency FB, as in the master).
     name / reg_no / intake: override the stored profile for this document only.
     """
@@ -258,6 +262,7 @@ def create_document(
             "header_text": header_text,
             "footer_text": footer_text,
             "title_font": title_font,
+            "table_style": table_style,
         },
     )
     return _build(src, export_pdf)
@@ -348,6 +353,7 @@ def update_document_settings(
     page_numbers: PageNumbers | None = None,
     header_text: str | None = None,
     footer_text: str | None = None,
+    table_style: Literal["grid", "shaded"] | None = None,
     export_pdf: bool = False,
 ) -> dict:
     """Change the cover details or document options (only the fields given) and rebuild."""
@@ -360,6 +366,7 @@ def update_document_settings(
     for key, val in dict(
         figure_captions=figure_captions, number_equations=number_equations, toc=toc, list_of_figures=list_of_figures,
         list_of_tables=list_of_tables, page_numbers=page_numbers, header_text=header_text, footer_text=footer_text,
+        table_style=table_style,
     ).items():
         if val is not None:
             src.options[key] = val
@@ -430,7 +437,7 @@ def extract_assignment_brief(path: str) -> dict:
 @mcp.tool()
 def spreadsheet_to_table(path: str, sheet: str = "", columns: list[str] | None = None, max_rows: int = 60, decimals: int | None = None) -> dict:
     """Turn an Excel (.xlsx) or CSV file of readings/results into a Markdown table for the body. It is
-    rendered in the master table style. columns: optional subset/order of column headers."""
+    rendered as a plain Word grid table. columns: optional subset/order of column headers."""
     try:
         md = ingest.table_to_markdown(path, sheet or None, columns, max_rows, decimals)
     except Exception as exc:

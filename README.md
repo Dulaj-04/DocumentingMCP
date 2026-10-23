@@ -16,7 +16,7 @@ house style:
   - **ca_report**: left-aligned, bold, underlined Times New Roman at 16 pt (Objectives, Given Data,
     Assumptions Made, …).
   - **assignment**: auto-numbered questions, with answers indented below them.
-- Bullet and numbered lists, grid tables, centered figures (phone-photo rotation is fixed for you).
+- Bullet and numbered lists, plain Word-style grid tables (black lines, no colours; a shaded style is optional), centered figures (phone-photo rotation is fixed for you).
 - **Real Word equations**, written in LaTeX (`$V_{out} = IR$`).
 - Code listings in a monospace box.
 - Optional PDF export.

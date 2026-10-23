@@ -84,9 +84,17 @@ def test_assignment_matches_master_format(isolated_home):
     bullet_heading = [p for p in d.paragraphs if p.text == "Binary Weighted Resistor DAC"][0]
     assert bullet_heading._p.pPr.numPr is not None  # "• Heading"
     xml = _xml(res["docx"])
-    assert 'w:fill="2C3E7A"' in xml and 'w:fill="EDF0F8"' in xml  # navy header, banded rows
+    assert "w:fill=" not in xml  # plain Word grid tables: no colours
+    assert 'w:color="000000"' in xml  # black grid lines
     header_run = d.tables[0].cell(0, 0).paragraphs[0].runs[0]
-    assert header_run.bold and str(header_run.font.color.rgb) == "FFFFFF"
+    assert header_run.bold and header_run.font.color.rgb is None
+    assert header_run.font.name == "Times New Roman"
+
+
+def test_shaded_tables_are_opt_in(isolated_home):
+    res = _build("assignment", "assignment.md", isolated_home, table_style="shaded")
+    xml = _xml(res["docx"])
+    assert 'w:fill="2C3E7A"' in xml and 'w:fill="EDF0F8"' in xml
 
 
 def test_missing_image_is_reported(isolated_home):

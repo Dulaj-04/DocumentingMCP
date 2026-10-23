@@ -96,7 +96,7 @@ series:
 ## Data tables
 
 - Use `spreadsheet_to_table` to turn the student's Excel/CSV readings into a pipe table. Tables are
-  rendered with the master style (navy header, banded rows).
+  rendered as plain Word tables (thin black grid, bold header row, no colours).
 
 ## After creating the document
 
@@ -181,8 +181,8 @@ Techniques"). Follow its structure:
     equation.
   - Finish with the boxed result in bold (`**+3.4375 V**`) and one sentence interpreting it.
 - Comparison questions use a 3-column pipe table (`| Parameter | Option A | Option B |`) under a
-  `## …Analysis` sub-heading. It is rendered with a navy header, banded rows and a centered first
-  column. Write each cell as one or two full sentences.
+  `## …Analysis` sub-heading. It is rendered as a plain Word grid table with a bold header row.
+  Write each cell as one or two full sentences.
 - Diagrams use `![...](path)` on their own line (rendered at about 92% of the page width). If no
   image exists, write an italic placeholder describing the diagram that is needed.
 - End with `# References` (not numbered as a question) and an IEEE-style numbered list.
