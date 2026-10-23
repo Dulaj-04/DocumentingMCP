@@ -20,6 +20,8 @@ house style:
 - **Real Word equations**, written in LaTeX (`$V_{out} = IR$`).
 - Code listings in a monospace box.
 - Optional PDF export.
+- Graphs, block diagrams and circuits drawn from text; IEEE citations; captions and cross-references.
+- Section-by-section editing, and a pre-submission checker.
 
 The style rules are documented in [`docs/style-spec.md`](docs/style-spec.md).
 
@@ -39,15 +41,41 @@ from Insert → Equation, not images. They are typeset in standard scientific st
 Fractions, roots, sums, integrals, limits, matrices, `cases`, overbars, accents, `\angle`, degrees and
 siunitx (`\SI{5}{\kilo\ohm}`) are all supported. See [`examples/equations.md`](examples/equations.md).
 
+## Graphs, diagrams and circuits
+
+Write them as fenced blocks in the body and they are drawn for you, in the document's colours:
+
+- ```` ```plot ```` draws an engineering graph from data, a formula, or Excel/CSV columns. Line, scatter, step,
+  stem and bar plots are supported, with log axes, annotations and `$maths$` in labels.
+- ```` ```diagram ```` draws a block diagram or flowchart from Mermaid syntax (`A[Latch] --> B[Switch]`). The
+  layout is automatic, and feedback loops are routed around the outside.
+- ```` ```circuit ```` draws a circuit or logic diagram (resistors, sources, op-amps, transistors, gates…).
+
+See [`examples/full_assignment.md`](examples/full_assignment.md).
+
+## Citations, captions and cross-references
+
+- `[@razavi1995]` becomes **[1]**, and an **IEEE reference list** is generated under `# References`.
+  References come from a saved library, filled from a DOI, ISBN or URL (`lookup_reference`) or added manually.
+- Label things with `{#fig:x}`, `{#tbl:x}` or `\label{eq:x}`, then write `@fig:x`, `@tbl:x` or `@eq:x`. They
+  become **live Word cross-references**: "Figure 2", "Table 1", "Eq. (3)".
+
 ## Tools the AI gets
 
-| Tool | Purpose |
+| Area | Tools |
 |---|---|
-| `get_profile` / `set_profile` | Store your name, reg no and intake once (saved in `~/.documenting-mcp/profile.json`) |
-| `list_templates` | `lab_report`, `ca_report`, `assignment` |
-| `get_writing_guide` | Section order, writing style and Markdown rules for a template |
-| `list_files` | See the screenshots and photos in a folder so they can be placed in the report |
-| `create_document` | Build the .docx (and optionally the .pdf) and return where it was saved |
+| Profile | `get_profile`, `set_profile`: your name, reg no and intake, stored once |
+| Writing | `list_templates`, `get_writing_guide`, and `create_document` (builds the .docx/.pdf) |
+| Source material | `extract_assignment_brief` (pulls the questions, marks, module and due date from a brief), `read_source` (PDF/DOCX/XLSX/TXT/code), `list_files`, `spreadsheet_to_table` |
+| Visuals | `make_plot`, `make_diagram`, `make_circuit` (previews; the same specs work as body blocks) |
+| References | `lookup_reference` (DOI/ISBN/URL), `add_reference`, `list_references`, `remove_reference` |
+| Editing | `get_document_source`, `update_section` (by heading or `Q2`), `insert_section`, `delete_section`, `replace_text`, `update_document_settings`. Only the changed part moves; formatting stays in the master style. |
+| Checking | `check_document`, which reports typos (British spelling is accepted), placeholders, "5V"-style unit spacing, first-person writing, empty sections, missing images, broken citations and cross-references, unanswered questions, and word/page limits. `check_similarity` flags paragraphs copied too closely from the lecture notes. |
+| Output | `export_pdf`. With Word on Windows, it refreshes the TOC, numbering and cross-references first. |
+
+**Optional extras.** These are all off by default, because the master format doesn't use them:
+`toc`, `list_of_figures`, `list_of_tables`, `page_numbers` ("bottom-center" / "bottom-right"; the cover
+is never numbered), `header_text`, `footer_text`, `figure_captions` and `number_equations`.
 
 By default, documents are saved to `Documents\DocumentingMCP`. You can change this with `set_profile(output_dir=...)`.
 

@@ -15,18 +15,20 @@ from pathlib import Path
 
 import pypandoc
 from docx import Document
-from docx.enum.section import WD_ORIENT
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
 from PIL import ImageOps
 
+from . import fields
 from .latex_prep import PreparedMath
 from .latex_prep import prepare as prepare_math
 from .omml import M, latex_to_omml
+from .references import format_ieee
 from .profile import Profile
 from .styles import HeadingStyle, TemplateStyle
 
@@ -48,6 +50,27 @@ class CoverInfo:
     title: str
     module: str = ""
     submission_date: str = ""
+
+
+@dataclass
+class BuildOptions:
+    references: dict[str, dict] = field(default_factory=dict)  # citation key -> IEEE entry
+    figures_dir: Path | None = None  # where generated plots/diagrams/circuits are kept
+    toc: bool = False
+    list_of_figures: bool = False
+    list_of_tables: bool = False
+    page_numbers: str = "none"  # none | bottom-center | bottom-right
+    header_text: str = ""
+    footer_text: str = ""
+
+
+VISUAL_CLASSES = {
+    "plot": "plot", "graph": "plot", "chart": "plot",
+    "diagram": "diagram", "mermaid": "diagram", "flowchart": "diagram", "block": "diagram",
+    "circuit": "circuit", "schematic": "circuit", "logic": "circuit",
+}
+_CROSSREF = re.compile(r"^(fig|tbl|tab|eq):", re.I)
+_REFS_HEADING = re.compile(r"^(references|bibliography|reference list)$", re.I)
 
 
 @dataclass
@@ -281,7 +304,8 @@ def _apply_num(p, num_id: int, ilvl: int) -> None:
 
 
 class ReportBuilder:
-    def __init__(self, style: TemplateStyle, profile: Profile, assets_dir: Path | None = None):
+    def __init__(self, style: TemplateStyle, profile: Profile, assets_dir: Path | None = None, options: BuildOptions | None = None):
+        self.opt = options or BuildOptions()
         self.s = style
         self.profile = profile
         self.assets_dir = assets_dir
@@ -294,8 +318,12 @@ class ReportBuilder:
         self._math: dict[int, object] = {}
         self._math_meta: dict[int, PreparedMath] = {}
         self._eq_n = 0
-        self._fig_n = 0
-        self._tab_n = 0
+        self._labels: dict[str, tuple[str, str]] = {}  # label -> (kind, number)
+        self._captions: dict[str, list[str]] = {"Figure": [], "Table": []}
+        self._cite_order: list[str] = []
+        self._refs_header_block = None
+        self._visual_n = 0
+        self._front_placeholder = None
         self._tmp = tempfile.TemporaryDirectory()
         self._setup_page()
         self._setup_styles()
@@ -423,8 +451,53 @@ class ReportBuilder:
             self._font(para.add_run(f"{label}\t"), self.s.cover_font, 12)
             r = para.add_run(value)
             self._font(r, self.s.cover_font, 12, bold=True)
-            if i == len(details) - 1:
+            if i == len(details) - 1 and not self._needs_body_section():
                 r.add_break(WD_BREAK.PAGE)
+        if self._needs_body_section():
+            self._start_body_section()
+        if self.opt.toc or self.opt.list_of_figures or self.opt.list_of_tables:
+            self._front_placeholder = self.doc.add_paragraph()
+            self._front_placeholder.add_run().add_break(WD_BREAK.PAGE)
+
+    # ---- optional page furniture (off by default: the master has none)
+
+    def _needs_body_section(self) -> bool:
+        return self.opt.page_numbers != "none" or bool(self.opt.header_text or self.opt.footer_text)
+
+    def _start_body_section(self) -> None:
+        """New section after the cover so the cover carries no header/footer and numbering starts at 1."""
+        sec = self.doc.add_section(WD_SECTION.NEW_PAGE)
+        sect_pr = sec._sectPr
+        pg = OxmlElement("w:pgNumType")
+        pg.set(qn("w:start"), "1")
+        anchor = sect_pr.find(qn("w:pgBorders"))
+        if anchor is None:
+            anchor = sect_pr.find(qn("w:pgMar"))
+        anchor.addnext(pg)
+        size = 10
+        if self.opt.header_text:
+            sec.header.is_linked_to_previous = False
+            hp = sec.header.paragraphs[0]
+            hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            r = hp.add_run(self.opt.header_text)
+            r.font.size = Pt(size)
+            r.font.color.rgb = RGBColor(0x40, 0x40, 0x40)
+        if self.opt.footer_text or self.opt.page_numbers != "none":
+            sec.footer.is_linked_to_previous = False
+            fp = sec.footer.paragraphs[0]
+            tabs = fp.paragraph_format.tab_stops
+            for default in (3.25, 6.5):  # the Footer style's own tab stops would win otherwise
+                tabs.add_tab_stop(Inches(default), WD_TAB_ALIGNMENT.CLEAR)
+            tabs.add_tab_stop(Inches(CONTENT_W / 2), WD_TAB_ALIGNMENT.CENTER)
+            tabs.add_tab_stop(Inches(CONTENT_W), WD_TAB_ALIGNMENT.RIGHT)
+            if self.opt.footer_text:
+                fp.add_run(self.opt.footer_text).font.size = Pt(size)
+            fp.add_run("\t")
+            if self.opt.page_numbers == "bottom-center":
+                fields.add_field(fp, "PAGE", "1", size_pt=size)
+            fp.add_run("\t")
+            if self.opt.page_numbers == "bottom-right":
+                fields.add_field(fp, "PAGE", "1", size_pt=size)
 
     @staticmethod
     def _font(run, name: str, size: float, bold: bool = False) -> None:
@@ -444,9 +517,166 @@ class ReportBuilder:
             )
         )
         blocks = ast["blocks"]
+        self._prepass(blocks)
         self._prepare_math(blocks)
+        blocks = self._place_reference_list(blocks)
         for b in blocks:
             self._block(self.doc, b, list_ctx=None)
+            if b is self._refs_header_block:
+                self._reference_list()
+        if self._refs_header_block is None and self._reference_keys():
+            heading = {"t": "Header", "c": [1, ["", [], []], [{"t": "Str", "c": "References"}]]}
+            self._block(self.doc, heading, list_ctx=None)
+            self._reference_list()
+        self._front_matter()
+
+    # ---- numbering pre-pass (figures, tables, citations) so cross-references can point forward
+
+    def _prepass(self, blocks) -> None:
+        fig_n = tab_n = 0
+
+        def figure(node_holder: dict, has_caption: bool, ident: str) -> None:
+            nonlocal fig_n
+            if (self.s.figure_captions and has_caption) or ident.lower().startswith("fig:"):
+                fig_n += 1
+                node_holder["_fig_no"] = fig_n
+                if ident:
+                    self._labels[ident] = ("Figure", str(fig_n))
+
+        def walk(node):
+            nonlocal tab_n
+            if isinstance(node, list):
+                for x in node:
+                    walk(x)
+                return
+            if not isinstance(node, dict):
+                return
+            t = node.get("t")
+            if t == "Para":
+                meaningful = [i for i in node["c"] if i["t"] not in ("Space", "SoftBreak", "LineBreak")]
+                if len(meaningful) == 1 and meaningful[0]["t"] == "Image":
+                    img = meaningful[0]
+                    figure(img, bool(img["c"][1]), img["c"][0][0])
+            elif t == "CodeBlock":
+                attr = node["c"][0]
+                if any(c.lower() in VISUAL_CLASSES for c in attr[1]):
+                    kv = dict(attr[2])
+                    figure(node, bool(kv.get("caption")), attr[0])
+                    if kv.get("caption"):  # captions may use *emphasis* and $maths$
+                        parsed = json.loads(pypandoc.convert_text(kv["caption"], "json", format="markdown+tex_math_dollars"))
+                        blocks_ = parsed.get("blocks") or []
+                        node["_cap"] = blocks_[0]["c"] if blocks_ else []
+            elif t == "Table":
+                attr, caption = node["c"][0], node["c"][1]
+                if caption[1] or attr[0].lower().startswith(("tbl:", "tab:")):
+                    tab_n += 1
+                    node["_tab_no"] = tab_n
+                    if attr[0]:
+                        self._labels[attr[0]] = ("Table", str(tab_n))
+            elif t == "Cite":
+                for cit in node["c"][0]:
+                    key = cit["citationId"]
+                    if not _CROSSREF.match(key) and key not in self._cite_order:
+                        self._cite_order.append(key)
+            walk(node.get("c"))
+
+        walk(blocks)
+
+    def _reference_keys(self) -> list[str]:
+        if self._cite_order:
+            return self._cite_order
+        return list(self.opt.references)  # nothing cited: list everything supplied
+
+    def _place_reference_list(self, blocks):
+        """If the body has a References heading and we generate the list, drop any hand-written list under it."""
+        if not self._reference_keys():
+            return blocks
+        out, skipping, level = [], False, None
+        for b in blocks:
+            if b["t"] == "Header":
+                text = _plain_text(b["c"][2]).strip()
+                if skipping and b["c"][0] <= level:
+                    skipping = False
+                if self._refs_header_block is None and _REFS_HEADING.match(text):
+                    self._refs_header_block, skipping, level = b, True, b["c"][0]
+                    out.append(b)
+                    continue
+            if skipping:
+                if b["t"] in ("OrderedList", "BulletList", "Para"):
+                    self.warnings.append("A hand-written reference list was replaced by the generated IEEE list.")
+                continue
+            out.append(b)
+        return out
+
+    def _reference_list(self) -> None:
+        keys = self._reference_keys()
+        for n, key in enumerate(keys, 1):
+            p = self.doc.add_paragraph()
+            pf = p.paragraph_format
+            pf.left_indent, pf.first_line_indent = Inches(0.45), Inches(-0.45)
+            pf.tab_stops.add_tab_stop(Inches(0.45))
+            pf.space_after = Pt(4)
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            bid = fields.bookmark_start(p, f"_Ref_cite{n}")
+            p.add_run(f"[{n}]")
+            fields.bookmark_end(p, bid)
+            p.add_run("\t")
+            entry = self.opt.references.get(key)
+            if entry is None:
+                self.warnings.append(f"Citation [@{key}] has no matching reference entry.")
+                r = p.add_run(f"(missing reference: {key})")
+                r.font.color.rgb = RGBColor(0xC0, 0, 0)
+                continue
+            for text, italic in format_ieee(entry):
+                r = p.add_run(text)
+                r.italic = italic
+
+    # ---- table of contents / lists of figures and tables (opt-in)
+
+    def _front_matter(self) -> None:
+        ph = self._front_placeholder
+        if ph is None:
+            return
+        parts = []
+        if self.opt.toc:
+            entries = []
+            for para in self.doc.paragraphs:
+                name = para.style.name if para.style is not None else ""
+                if name.startswith("Heading ") and para.text.strip():
+                    entries.append((int(name.split()[-1]), para.text.strip()))
+            parts.append(("Table of Contents", 'TOC \\o "1-3" \\h \\z \\u', entries))
+        if self.opt.list_of_figures:
+            parts.append(("List of Figures", 'TOC \\h \\z \\c "Figure"', [(1, c) for c in self._captions["Figure"]]))
+        if self.opt.list_of_tables:
+            parts.append(("List of Tables", 'TOC \\h \\z \\c "Table"', [(1, c) for c in self._captions["Table"]]))
+        for title, instr, entries in parts:
+            tp = OxmlElement("w:p")
+            ph._p.addprevious(tp)
+            from docx.text.paragraph import Paragraph
+
+            t = Paragraph(tp, ph._parent)
+            t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            t.paragraph_format.space_before = Pt(6)
+            t.paragraph_format.space_after = Pt(14)
+            r = t.add_run(title)
+            r.bold, r.font.size = True, Pt(14)
+            body = OxmlElement("w:p")
+            ph._p.addprevious(body)
+            bp = Paragraph(body, ph._parent)
+            cached = "\n".join(("    " * (lvl - 1)) + text for lvl, text in entries) or "Update this field in Word (right-click → Update Field)."
+            fields.add_field(bp, instr, cached.split("\n")[0])
+            # remaining cached lines as line breaks inside the result keep the field in one paragraph
+            for line in cached.split("\n")[1:]:
+                rr = OxmlElement("w:r")
+                rr.append(OxmlElement("w:br"))
+                tt = OxmlElement("w:t")
+                tt.text = line
+                tt.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                rr.append(tt)
+                end = [e for e in bp._p.iter(qn("w:fldChar")) if e.get(qn("w:fldCharType")) == "end"][-1].getparent()
+                end.addprevious(rr)
+            bp.paragraph_format.space_after = Pt(18)
+        fields.set_update_fields_on_open(self.doc)
 
     def _prepare_math(self, blocks) -> None:
         found: list[str] = []
@@ -455,11 +685,20 @@ class ReportBuilder:
             if isinstance(node, dict):
                 if node.get("t") == "Math":
                     prepared = prepare_math(node["c"][1], scientific=self.s.scientific_math)
+                    if node["c"][0]["t"] == "DisplayMath" and not prepared.notag:
+                        if prepared.tag:
+                            prepared.number = prepared.tag
+                        elif self.s.number_equations or prepared.label:
+                            self._eq_n += 1
+                            prepared.number = str(self._eq_n)
+                        if prepared.label and prepared.number:
+                            self._labels[prepared.label] = ("Equation", prepared.number)
                     self._math_meta[len(found)] = prepared
                     found.append(prepared.latex)
                     node["_mi"] = len(found) - 1
                 else:
                     walk(node.get("c"))
+                    walk(node.get("_cap"))
             elif isinstance(node, list):
                 for x in node:
                     walk(x)
@@ -511,11 +750,14 @@ class ReportBuilder:
         elif t == "OrderedList":
             self._list(container, c[1], c[0], list_ctx)
         elif t == "Table":
-            self._table(container, c)
+            self._table(container, c, number=b.get("_tab_no"))
         elif t == "Figure":
             self._figure(container, c)
         elif t == "CodeBlock":
-            self._code(container, c[1])
+            if any(cl.lower() in VISUAL_CLASSES for cl in c[0][1]):
+                self._visual(container, b)
+            else:
+                self._code(container, c[1])
         elif t == "BlockQuote":
             for sub in c:
                 before = len(container.paragraphs)
@@ -543,8 +785,8 @@ class ReportBuilder:
         meaningful = [i for i in inlines if i["t"] not in ("Space", "SoftBreak", "LineBreak")]
         # A paragraph that is only an image is a figure.
         if len(meaningful) == 1 and meaningful[0]["t"] == "Image" and list_ctx is None:
-            img = meaningful[0]["c"]
-            self._figure_image(container, img, caption=img[1])
+            img = meaningful[0]
+            self._figure_image(container, img["c"], caption=img["c"][1], number=img.get("_fig_no"))
             return
         # Display math is always set on its own centred line, even when written mid-paragraph.
         if any(i["t"] == "Math" and i["c"][0]["t"] == "DisplayMath" for i in meaningful):
@@ -564,13 +806,7 @@ class ReportBuilder:
 
     def _display_equation(self, container, node, list_ctx) -> None:
         meta = self._math_meta.get(node.get("_mi", -1))
-        number = None
-        if meta and not meta.notag:
-            if meta.tag:
-                number = meta.tag
-            elif self.s.number_equations:
-                self._eq_n += 1
-                number = str(self._eq_n)
+        number = meta.number if meta else None
         if number is None or container is not self.doc:
             p = self._new_para(container, list_ctx, justify=False)
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER  # centred within the answer column, as in the master
@@ -591,7 +827,15 @@ class ReportBuilder:
         self._math_into(mid, node, display=True)
         right = table.cell(0, 2).paragraphs[0]
         right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        right.add_run(f"({number})")
+        bid = fields.bookmark_start(right, fields.bookmark_name(meta.label)) if meta.label else None
+        right.add_run("(")
+        if number.isdigit():
+            fields.add_field(right, "SEQ Equation \\* ARABIC", number)
+        else:
+            right.add_run(number)
+        right.add_run(")")
+        if bid:
+            fields.bookmark_end(right, bid)
         spacer = container.add_paragraph()
         spacer.paragraph_format.space_after = Pt(0)
         spacer.paragraph_format.line_spacing = 0.5
@@ -729,7 +973,7 @@ class ReportBuilder:
                 self._inlines(p, c[1], fmt)
             elif t == "Cite":
                 flush()
-                self._inlines(p, c[1], fmt)
+                self._cite(p, c[0], fmt)
             elif t == "Image":
                 flush()
                 path = self._resolve(c[2][0])
@@ -740,6 +984,69 @@ class ReportBuilder:
             elif t == "Note":
                 continue
         flush()
+
+    def _cite(self, p, citations, fmt) -> None:
+        """[@key] -> IEEE [n]; @fig:x / @tbl:x / @eq:x -> live cross-reference to the caption or number."""
+        nums: list[tuple[int, str]] = []
+
+        def flush_nums():
+            if not nums:
+                return
+            groups, run = [], [nums[0]]
+            for n in nums[1:]:
+                if n[0] == run[-1][0] + 1 and not n[1] and not run[-1][1]:
+                    run.append(n)
+                else:
+                    groups.append(run)
+                    run = [n]
+            groups.append(run)
+            for gi, g in enumerate(groups):
+                if gi:
+                    p.add_run(", ")
+                if len(g) >= 3:
+                    fields.internal_link(p, f"_Ref_cite{g[0][0]}", f"[{g[0][0]}]")
+                    p.add_run("–")
+                    fields.internal_link(p, f"_Ref_cite{g[-1][0]}", f"[{g[-1][0]}]")
+                else:
+                    for k, (n, suffix) in enumerate(g):
+                        if k:
+                            p.add_run(", ")
+                        fields.internal_link(p, f"_Ref_cite{n}", f"[{n}{suffix}]")
+            nums.clear()
+
+        prev_crossref = False
+        for i, cit in enumerate(citations):
+            key = cit["citationId"]
+            if _CROSSREF.match(key):
+                flush_nums()
+                if i:
+                    p.add_run(", ")
+                prev_crossref = True
+                kind, number = self._labels.get(key, (None, None))
+                if kind is None:
+                    self.warnings.append(f"Cross-reference @{key} points to nothing (add {{#{key}}} to a figure, table or \\label{{{key}}} to an equation).")
+                    r = p.add_run(f"??{key}")
+                    r.font.color.rgb = RGBColor(0xC0, 0, 0)
+                    continue
+                bm = fields.bookmark_name(key)
+                if kind == "Equation":
+                    p.add_run("Eq. ")
+                    fields.add_field(p, f"REF {bm} \\h", f"({number})")
+                else:
+                    fields.add_field(p, f"REF {bm} \\h", f"{kind} {number}")
+                continue
+            n = self._cite_order.index(key) + 1 if key in self._cite_order else 0
+            suffix = _plain_text(cit.get("citationSuffix", [])).strip()
+            if suffix and not suffix.startswith(","):
+                suffix = ", " + suffix
+            if prev_crossref:
+                p.add_run(" ")
+                prev_crossref = False
+            if n == 0:
+                p.add_run("[?]")
+                continue
+            nums.append((n, suffix))
+        flush_nums()
 
     def _math_into(self, p, node, display: bool) -> None:
         el = self._math.get(node.get("_mi", -1))
@@ -819,7 +1126,7 @@ class ReportBuilder:
                 if node["t"] == "Image":
                     self._figure_image(container, node["c"], caption=cap_inlines or node["c"][1])
 
-    def _figure_image(self, container, img, caption) -> None:
+    def _figure_image(self, container, img, caption, number=None) -> None:
         attr, _alt, (src, _title) = img
         path = self._resolve(src)
         if not path:
@@ -833,24 +1140,85 @@ class ReportBuilder:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_before = Pt(6)
         p.paragraph_format.space_after = Pt(6)
-        p.paragraph_format.keep_with_next = self.s.figure_captions and bool(caption)
+        p.paragraph_format.keep_with_next = number is not None
         p.add_run().add_picture(str(path), width=self._img_width(path, attr[2]))
-        if self.s.figure_captions and caption:
-            self._fig_n += 1
-            cp = container.add_paragraph()
-            cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            cp.paragraph_format.space_after = Pt(12)
-            r = cp.add_run(f"Figure {self._fig_n}: ")
-            r.bold = True
-            r.font.size = Pt(self.s.body_size - 1)
+        if number is not None:
+            self._caption(container, "Figure", number, attr[0], caption)
+
+    def _caption(self, container, kind: str, number: int, label: str, inlines) -> None:
+        """'Figure 3: text' with a live SEQ number and a bookmark that @fig:x cross-references point to."""
+        cp = container.add_paragraph()
+        cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        pf = cp.paragraph_format
+        pf.space_before, pf.space_after = (Pt(2), Pt(12)) if kind == "Figure" else (Pt(8), Pt(4))
+        pf.keep_with_next = kind == "Table"
+        size = self.s.body_size - 1
+        bid = fields.bookmark_start(cp, fields.bookmark_name(label)) if label else None
+        r = cp.add_run(f"{kind} ")
+        r.bold, r.font.size = True, Pt(size)
+        fields.add_field(cp, f"SEQ {kind} \\* ARABIC", str(number), bold=True, size_pt=size)
+        if bid:
+            fields.bookmark_end(cp, bid)
+        text = _plain_text(inlines).strip() if not isinstance(inlines, str) else inlines.strip()
+        if text:
+            r = cp.add_run(": ")
+            r.bold, r.font.size = True, Pt(size)
             before = len(cp.runs)
-            self._inlines(cp, caption, {"italic": True})
+            if isinstance(inlines, str):
+                cp.add_run(inlines.strip())
+            else:
+                self._inlines(cp, inlines, {})
             for run in cp.runs[before:]:
-                run.font.size = Pt(self.s.body_size - 1)
+                run.font.size = Pt(size)
+        text = re.sub(r"[{}\\$]", "", text).replace("_", "")
+        self._captions[kind].append(f"{kind} {number}: {text}" if text else f"{kind} {number}")
+
+    # ---- generated visuals (```plot, ```diagram, ```circuit)
+
+    def _visual(self, container, block) -> None:
+        import yaml
+
+        from .diagrams import render_circuit, render_flowchart
+        from .plots import make_plot
+
+        attr, text = block["c"]
+        kind = next(VISUAL_CLASSES[c.lower()] for c in attr[1] if c.lower() in VISUAL_CLASSES)
+        kv = dict(attr[2])
+        self._visual_n += 1
+        out_dir = self.opt.figures_dir or Path(self._tmp.name)
+        out = out_dir / f"figure_{self._visual_n:02d}_{kind}.png"
+        try:
+            if kind == "plot":
+                spec = yaml.safe_load(text) or {}
+                make_plot(spec, out, base_dir=self.assets_dir)
+            elif kind == "diagram":
+                render_flowchart(text, out)
+            else:
+                spec = yaml.safe_load(text)
+                items = spec.get("elements", spec) if isinstance(spec, dict) else spec
+                render_circuit(items, out)
+        except Exception as exc:
+            self.warnings.append(f"Could not draw {kind} #{self._visual_n}: {exc}")
+            ep = container.add_paragraph()
+            ep.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r = ep.add_run(f"[{kind} could not be drawn: {exc}]")
+            r.italic, r.font.color.rgb = True, RGBColor(0xC0, 0, 0)
+            return
+        default_w = {"plot": "85%", "diagram": None, "circuit": "70%"}[kind]
+        size_kv = [["width", kv.get("width") or default_w]] if (kv.get("width") or default_w) else []
+        p = container.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(6)
+        number = block.get("_fig_no")
+        p.paragraph_format.keep_with_next = number is not None
+        p.add_run().add_picture(str(out), width=self._img_width(out, size_kv))
+        if number is not None:
+            self._caption(container, "Figure", number, attr[0], block.get("_cap") or kv.get("caption", ""))
 
     # ---- tables
 
-    def _table(self, container, c) -> None:
+    def _table(self, container, c, number=None) -> None:
         """Master table style: navy header with white bold text, banded rows, light grey grid, Calibri 11."""
         _attr, caption, colspecs, head, bodies, foot = c
         rows = []
@@ -866,14 +1234,8 @@ class ReportBuilder:
         ncols = len(colspecs)
 
         cap_inlines = caption[1][0]["c"] if caption[1] else []
-        if cap_inlines:
-            self._tab_n += 1
-            cp = container.add_paragraph()
-            cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            cp.paragraph_format.keep_with_next = True
-            r = cp.add_run(f"Table {self._tab_n}: ")
-            r.bold = True
-            self._inlines(cp, cap_inlines, {"italic": True})
+        if number is not None:
+            self._caption(container, "Table", number, _attr[0], cap_inlines)
 
         table = container.add_table(rows=len(rows), cols=ncols)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -1013,12 +1375,13 @@ def build_report(
     markdown: str,
     out_path: Path,
     assets_dir: Path | None = None,
+    options: BuildOptions | None = None,
 ) -> BuildResult:
-    b = ReportBuilder(style, profile, assets_dir)
+    b = ReportBuilder(style, profile, assets_dir, options)
     b.add_cover(cover)
     b.add_markdown(markdown)
     path = b.save(out_path)
     return BuildResult(path=path, warnings=b.warnings)
 
 
-__all__ = ["CoverInfo", "BuildResult", "ReportBuilder", "build_report", "M"]
+__all__ = ["CoverInfo", "BuildOptions", "BuildResult", "ReportBuilder", "build_report", "M"]

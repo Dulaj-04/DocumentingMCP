@@ -46,6 +46,8 @@ class PreparedMath:
     latex: str
     tag: str | None = None  # equation number requested with \tag{..}
     notag: bool = False  # \nonumber / \notag present
+    label: str | None = None  # \label{eq:...} for cross-references
+    number: str | None = None  # assigned by the builder for display equations
 
 
 def _si_units(spec: str) -> str:
@@ -110,10 +112,11 @@ def prepare(tex: str, *, scientific: bool = True) -> PreparedMath:
         tex = tex[: m.start()] + tex[m.end() :]
     notag = bool(re.search(r"\\(?:nonumber|notag)\b", tex))
     tex = re.sub(r"\\(?:nonumber|notag)\b", "", tex)
+    lab = re.search(r"\\label\s*\{([^{}]*)\}", tex)
     tex = re.sub(r"\\label\s*\{[^{}]*\}", "", tex)
     tex = re.sub(r"\\(?:begin|end)\{(?:equation|displaymath)\*?\}", "", tex)
     tex = re.sub(r"\\(begin|end)\{(?:align|eqnarray|flalign)\*?\}", r"\\\1{aligned}", tex)
     tex = _rewrite_siunitx(tex)
     if scientific:
         tex = _outside_protected(tex, lambda s: _upright_units(_upright_subscripts(s)))
-    return PreparedMath(latex=tex.strip(), tag=tag, notag=notag)
+    return PreparedMath(latex=tex.strip(), tag=tag, notag=notag, label=lab.group(1).strip() if lab else None)

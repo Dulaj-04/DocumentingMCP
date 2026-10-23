@@ -43,9 +43,71 @@ image, so the student can still edit it in Word.
   of them (and use `\notag` to skip one). The number appears flush right as "(1)".
 - siunitx is accepted: `\SI{5}{\kilo\ohm}` and `\si{\milli\ampere}`.
 
+## Graphs, block diagrams and circuits (drawn for you, inside the body)
+
+Write these as fenced blocks. Each one is rendered to a figure in the document's colours. Add
+`#fig:name` and `caption="..."` to number it and refer to it.
+
+````markdown
+```{.plot #fig:torque caption="Torque–slip characteristic for two rotor resistances"}
+x_label: "Slip $s$"
+y_label: "Torque $T_e$ (pu)"
+constants: {Tm: 2.5, s1: 0.04, s2: 0.2}
+series:
+  - {label: "$R_r$ = 0.01 pu", expr: "2*Tm*s*s1/(s^2+s1^2)", var: s, range: [0.001, 1]}
+  - {label: "$R_r$ = 0.05 pu", expr: "2*Tm*s*s2/(s^2+s2^2)", var: s, range: [0.001, 1], style: "--"}
+```
+````
+
+- **Plot series:** use `x`/`y` lists of measured data, `expr` with `range` (a formula), or
+  `file` with `x`/`y` column names (CSV/XLSX, relative to assets_dir).
+- **Plot types:** line, scatter, step, stem, bar. Log axes: `xscale: log`. Extras: `hlines`, `vlines`, `annotations`.
+- **Diagrams:** a `{.diagram #fig:x caption="..."}` block in Mermaid flowchart syntax.
+  - `flowchart LR` (left to right) suits block diagrams; `flowchart TD` (top down) suits program flowcharts.
+  - Shapes: `A[box]`, `B(rounded)`, `C{decision}`, `D((circle))`, `E[/input or output/]`.
+  - Edges: `A --> B`, `A -->|label| B`, `A -- Yes --> B`, `A -.-> B` (dotted). Line breaks: `<br>`. Maths: `$V_{ref}$`.
+- **Circuits / logic:** a `{.circuit #fig:x caption="..."}` block holding a YAML list of elements
+  placed one after another. Example:
+  `- {type: vsource, dir: up, label: "$V_{in}$", id: vs}` then
+  `- {type: resistor, dir: right, label: "$R_1$", value: "10 kΩ"}`.
+  Elements can be positioned with `at: id.anchor`, `to`/`tox`/`toy`. An opamp has anchors in1, in2 and out.
+  Logic gates are and, or, not, nand, nor and xor.
+- Use `make_plot`, `make_diagram` and `make_circuit` first if you want to preview a drawing.
+- Draw diagrams and plots instead of describing them whenever a question says "using a suitable
+  diagram", "sketch", "plot" or "draw".
+
+## Captions and cross-references
+
+- Label figures `![caption](img.png){#fig:lcd}` and tables (a `Table: caption {#tbl:data}` line under
+  the table). Display equations take `$$ ... \\label{eq:ohm} $$`.
+- In the text, write `@fig:lcd` → "Figure 2", `@tbl:data` → "Table 1", `@eq:ohm` → "Eq. (3)". These
+  are live Word cross-references that update if items move.
+- Labelled items are always numbered. With `figure_captions=true`, every figure with alt text gets a caption.
+
+## Citations (IEEE)
+
+- Cite with `[@key]` → [1]. Several at once: `[@a; @b]` → [1], [2]. With a page: `[@key, p. 45]` → [1, p. 45].
+- Keys come from the reference library (`lookup_reference` with a DOI/ISBN/URL, or `add_reference`)
+  or from the `references` argument of create_document.
+- The numbered IEEE reference list is generated under `# References`, or appended at the end. Do not
+  type the list yourself.
+- Cite the lecture notes, the textbook and the datasheets that the theory comes from.
+
+## Data tables
+
+- Use `spreadsheet_to_table` to turn the student's Excel/CSV readings into a pipe table. Tables are
+  rendered with the master style (navy header, banded rows).
+
+## After creating the document
+
+- Run `check_document`, and `check_similarity` against the lecture notes if they were used.
+- Fix every error with `update_section` / `replace_text` / `insert_section`. Never regenerate the
+  whole document for a small change.
+
 Image paths may be absolute, or relative to `assets_dir`. Use `list_files` to see what images the
 student has. Never invent image paths. If a required screenshot or photo is missing, write a short
-italic placeholder such as `*[Insert photo of the LCD output here]*`.
+italic placeholder such as `*[Insert photo of the LCD output here]*`. The checker reports any
+placeholders still left in.
 
 Writing style for all KDU EE reports:
 - Formal academic English, in the **past tense and passive voice** for procedure, observations,

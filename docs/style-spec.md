@@ -173,3 +173,16 @@ Cover details use no separator; the values are bold (user decision).
 - Cell padding is about 5 pt top and bottom and 6 pt left and right.
 
 These table rules now apply to every template.
+
+## 10. Additions beyond the master (all opt-in or invisible in the default output)
+
+- **Figures and table captions** use the Word "Figure n: text" / "Table n: text" convention, centred, at 11 pt.
+  The label is bold. Figure captions go below the figure and table captions above the table. The
+  numbers are SEQ fields. Captions appear only when an item is labelled or `figure_captions` is on.
+- **Citations** follow IEEE: [n] in order of first citation, ranges written [1]–[3]. The reference list
+  uses hanging "[n]" labels at 0.45 in, with titles of books and journals in *italics*.
+- **Generated figures** (plots, diagrams, circuits) use Times-style serif text, the navy #2C3E7A
+  outline and the #EDF0F8 fill from the master's tables, and light-grey grids.
+- **Table of contents / lists of figures and tables** are placed after the cover on their own page.
+- **Page numbers and headers/footers** use a second section, so the cover page stays blank and
+  numbering starts at 1.
