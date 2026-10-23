@@ -1,6 +1,6 @@
 [project]
 name = "documenting-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP server that generates KDU EE lab reports, CA reports and assignments as styled Word documents"
 readme = "README.md"
 authors = [

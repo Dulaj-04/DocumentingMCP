@@ -15,7 +15,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field, create_model
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import __version__, export, ingest, planning, project, quality, references
+from . import __version__, export, ingest, live_word, planning, project, quality, references
 from .builder import BuildOptions, CoverInfo, build_report
 from .guides import guide_for
 from .profile import Profile, load_profile, save_profile
@@ -46,7 +46,9 @@ mcp = MCPServer(
         "Tools along the way: extract_assignment_brief/read_source for briefs and notes, get_writing_guide, "
         "list_files, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
         "create_document(plan_id=...), review_figures + approve_figures (student approves every figure), "
-        "update_section/replace_text for changes, check_document and check_similarity before export_pdf."
+        "update_section/replace_text for changes (applied live if the document is open in Word; open_in_word "
+        "offers that; never pass overwrite_manual_edits=true without the student's consent), "
+        "check_document and check_similarity before export_pdf."
     ),
 )
 
@@ -190,6 +192,7 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
         assets_dir=assets,
         options=build_opts,
     )
+    src.built_hash = project.file_hash(result.path)
     save_source(result.path, src)
     response: dict = {"docx": str(result.path), "warnings": result.warnings}
     pending = [f for f in result.figures if not f.approved]
@@ -622,10 +625,71 @@ def create_document(
 # --------------------------------------------------------------------------- editing existing documents
 
 
-def _rebuild(docx_path: str, src: DocSource, export_pdf: bool, note: str) -> dict:
-    out = _build(src, export_pdf, out_path=Path(docx_path).expanduser())
+def _rebuild(
+    docx_path: str,
+    src: DocSource,
+    export_pdf: bool,
+    note: str,
+    live_op=None,
+    overwrite_manual_edits: bool = False,
+) -> dict:
+    """Apply an edit. If the document is open in Word (Windows), the change goes straight into the open
+    document (live_op). Otherwise the .docx is rebuilt, but never over hand edits made in Word unless the
+    student agreed (overwrite_manual_edits)."""
+    path = Path(docx_path).expanduser()
+    doc = live_word.find_open_document(path)
+    if doc is not None:
+        if live_op is None:
+            return {"error": "This change affects the whole document (cover or page settings), which cannot be "
+                    "applied to a document that is open in Word. Ask the student to save and close it, then try again."}
+        tmpdir = Path(tempfile.mkdtemp())
+        try:
+            built = _build(DocSource(**{**src.__dict__}), out_path=tmpdir / path.name)
+            if not live_op(doc, Path(built["docx"])):
+                return {"error": "Could not find that part of the document in Word (it may have been renamed by hand). "
+                        "Ask the student to close the document so it can be rebuilt instead."}
+            live_word.finish(doc)
+            tmp_figs, real_figs = tmpdir / f"{path.stem}_figures", path.parent / f"{path.stem}_figures"
+            if tmp_figs.is_dir():
+                shutil.copytree(tmp_figs, real_figs, dirs_exist_ok=True)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        src.built_hash = project.file_hash(path)
+        save_source(path, src)
+        out = {"docx": str(path), "live": True, "change": note + " Applied live in Word (other hand edits kept).",
+               "warnings": built["warnings"]}
+        for key in ("figures", "action_required"):
+            if key in built:
+                out[key] = built[key]
+        if export_pdf:
+            pdf = path.with_suffix(".pdf")
+            doc.ExportAsFixedFormat(str(pdf.resolve()), 17)
+            out["pdf"] = str(pdf)
+        return out
+    if path.is_file() and src.built_hash and project.file_hash(path) != src.built_hash and not overwrite_manual_edits:
+        return {
+            "error": "This document was edited in Word after it was generated. Rebuilding would discard those hand "
+            "edits. Ask the student: (a) open it in Word (open_in_word) so the change is applied live and their edits "
+            "are kept, or (b) confirm the hand edits can be discarded, then repeat with overwrite_manual_edits=true.",
+            "manual_edits_detected": True,
+        }
+    out = _build(src, export_pdf, out_path=path)
     out["change"] = note
     return out
+
+
+@mcp.tool()
+def open_in_word(docx_path: str) -> dict:
+    """Open the document in Microsoft Word (Windows) so that later edits (update_section, insert_section,
+    delete_section, replace_text) are applied live in the open window, keeping any hand edits."""
+    path = Path(docx_path).expanduser()
+    if not path.is_file():
+        return {"error": f"File not found: {docx_path}"}
+    try:
+        live_word.open_document(path)
+    except Exception as exc:
+        return {"error": f"Could not open Word: {exc}. Live editing needs Microsoft Word on Windows (2013 or later)."}
+    return {"opened": str(path), "live_editing": True}
 
 
 def _input_gate(src: DocSource, headings: list[str]) -> dict | None:
@@ -661,23 +725,34 @@ def get_document_source(docx_path: str) -> dict:
 
 
 @mcp.tool()
-def update_section(docx_path: str, section: str, new_markdown: str, export_pdf: bool = False) -> dict:
+def update_section(docx_path: str, section: str, new_markdown: str, export_pdf: bool = False,
+                   overwrite_manual_edits: bool = False) -> dict:
     """Replace one section (with its sub-sections) and rebuild the document; everything else is untouched.
 
     section: heading text ("Discussion", "Working Principle"), its position in the outline ("3"), or a
         question number for assignments ("Q2").
     new_markdown: the new content. If it does not start with a heading, the existing heading is kept.
+    If the document is open in Word, the change is applied live there (hand edits elsewhere are kept).
+    overwrite_manual_edits: only after the student agrees to lose edits they made by hand in Word.
     """
     src = load_source(docx_path)
     blocked = _input_gate(src, [section] + [s_.title for s_ in project.sections(new_markdown)])
     if blocked:
         return blocked
+    old_title = project.find_section(src.body_markdown, section).title
     src.body_markdown = project.replace_section(src.body_markdown, section, new_markdown)
-    return _rebuild(docx_path, src, export_pdf, f"Replaced section '{section}'.")
+    new_heads = project.sections(new_markdown)
+    new_title = new_heads[0].title if new_heads and new_markdown.lstrip().startswith("#") else old_title
+
+    def live(doc, built):
+        return live_word.replace_section_live(doc, old_title, built, new_title)
+
+    return _rebuild(docx_path, src, export_pdf, f"Replaced section '{section}'.", live, overwrite_manual_edits)
 
 
 @mcp.tool()
-def insert_section(docx_path: str, new_markdown: str, after: str = "", before: str = "", export_pdf: bool = False) -> dict:
+def insert_section(docx_path: str, new_markdown: str, after: str = "", before: str = "", export_pdf: bool = False,
+                   overwrite_manual_edits: bool = False) -> dict:
     """Insert new content (e.g. an extra question or a 'Discussion' section) and rebuild.
     Give after= or before= a heading / outline number / "Q3"; with neither, it is added at the end
     (before References)."""
@@ -685,27 +760,46 @@ def insert_section(docx_path: str, new_markdown: str, after: str = "", before: s
     blocked = _input_gate(src, [s_.title for s_ in project.sections(new_markdown)])
     if blocked:
         return blocked
+    after_t = project.find_section(src.body_markdown, after).title if after else None
+    before_t = project.find_section(src.body_markdown, before).title if before else None
     src.body_markdown = project.insert_section(src.body_markdown, new_markdown, after or None, before or None)
-    return _rebuild(docx_path, src, export_pdf, "Inserted new section.")
+    new_heads = project.sections(new_markdown)
+    if not new_heads:
+        return {"error": "new_markdown must start with a heading (e.g. '# Discussion')."}
+
+    def live(doc, built):
+        return live_word.insert_section_live(doc, built, new_heads[0].title, after_t, before_t)
+
+    return _rebuild(docx_path, src, export_pdf, "Inserted new section.", live, overwrite_manual_edits)
 
 
 @mcp.tool()
-def delete_section(docx_path: str, section: str, export_pdf: bool = False) -> dict:
-    """Remove a section (with its sub-sections) and rebuild."""
+def delete_section(docx_path: str, section: str, export_pdf: bool = False, overwrite_manual_edits: bool = False) -> dict:
+    """Remove a section (with its sub-sections) and rebuild (or delete it live if the document is open in Word)."""
     src = load_source(docx_path)
+    title = project.find_section(src.body_markdown, section).title
     src.body_markdown = project.delete_section(src.body_markdown, section)
-    return _rebuild(docx_path, src, export_pdf, f"Deleted section '{section}'.")
+
+    def live(doc, built):
+        return live_word.delete_section_live(doc, title)
+
+    return _rebuild(docx_path, src, export_pdf, f"Deleted section '{section}'.", live, overwrite_manual_edits)
 
 
 @mcp.tool()
-def replace_text(docx_path: str, find: str, replace: str, count: int = 0, export_pdf: bool = False) -> dict:
-    """Find-and-replace in the document body (e.g. fix a value or a typo everywhere), then rebuild.
-    count=0 replaces every occurrence."""
+def replace_text(docx_path: str, find: str, replace: str, count: int = 0, export_pdf: bool = False,
+                 overwrite_manual_edits: bool = False) -> dict:
+    """Find-and-replace in the document body (e.g. fix a value or a typo everywhere), then rebuild, or run
+    it inside Word if the document is open there. count=0 replaces every occurrence."""
     src = load_source(docx_path)
     src.body_markdown, n = project.replace_text(src.body_markdown, find, replace, count)
     if n == 0:
         return {"docx": docx_path, "warnings": [f"'{find}' was not found; nothing changed."]}
-    return _rebuild(docx_path, src, export_pdf, f"Replaced {n} occurrence(s).")
+
+    def live(doc, built):
+        return live_word.replace_text_live(doc, find, replace, count) > 0
+
+    return _rebuild(docx_path, src, export_pdf, f"Replaced {n} occurrence(s).", live, overwrite_manual_edits)
 
 
 @mcp.tool()
@@ -731,8 +825,10 @@ def update_document_settings(
     department: str | None = None,
     members: list[dict] | None = None,
     export_pdf: bool = False,
+    overwrite_manual_edits: bool = False,
 ) -> dict:
-    """Change the cover details or document options (only the fields given) and rebuild."""
+    """Change the cover details or document options (only the fields given) and rebuild. Needs the document
+    to be closed in Word."""
     src = load_source(docx_path)
     for key, val in dict(title=title, module=module, submission_date=submission_date, template=template, assets_dir=assets_dir).items():
         if val is not None:
@@ -747,7 +843,7 @@ def update_document_settings(
     ).items():
         if val is not None:
             src.options[key] = val
-    return _rebuild(docx_path, src, export_pdf, "Settings updated.")
+    return _rebuild(docx_path, src, export_pdf, "Settings updated.", None, overwrite_manual_edits)
 
 
 def _figure_status(docx_path: str) -> tuple[DocSource, list[dict]]:

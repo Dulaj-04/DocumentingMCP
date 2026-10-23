@@ -133,6 +133,10 @@ later makes it pending again.
 - Run `check_document`, and `check_similarity` against the lecture notes if they were used.
 - Fix every error with `update_section` / `replace_text` / `insert_section`. Never regenerate the
   whole document for a small change.
+- If the student wants to keep editing by hand, offer `open_in_word` (Windows). While the document is
+  open in Word, those edit tools change it live and keep their hand edits.
+- If a tool reports `manual_edits_detected`, the student changed the file in Word. Ask them whether to
+  open it in Word (edits kept) or discard their edits; only then repeat with `overwrite_manual_edits=true`.
 
 Image paths may be absolute, or relative to `assets_dir`. Use `list_files` to see what images the
 student has. Never invent image paths. If a required screenshot or photo is missing, write a short

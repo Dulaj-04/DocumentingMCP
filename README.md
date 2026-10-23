@@ -316,6 +316,9 @@ it needs approving again.
 
 > Change every "5V" to "5 V", remove the "Block Descriptions" part, and set the date to 20/05/2026.
 
+> Open it in Word. *(Windows: later changes then appear live in the open window, and your own hand
+> edits are kept.)*
+
 ### 9. Check it, then get the PDF
 
 > Check my assignment. The limit is 6 pages and 1500 words. Compare it with the lecture notes too.
@@ -366,6 +369,7 @@ The AI calls these for you. The list shows what the server can do.
 | Figures | `review_figures`, `approve_figures` | Critical review of each figure, and your approval |
 | References | `lookup_reference`, `add_reference`, `list_references`, `remove_reference` | IEEE reference library, filled by DOI, ISBN or URL |
 | Editing | `get_document_source`, `update_section`, `insert_section`, `delete_section`, `replace_text`, `update_document_settings` | Change parts of a document without regenerating it |
+| | `open_in_word` | Open the document in Word (Windows) so later changes are applied live, keeping your hand edits |
 | Checking | `check_document`, `check_similarity` | Pre-submission check, and comparison with your sources |
 | Output | `export_pdf` | PDF, with Word refreshing all fields first |
 
@@ -381,9 +385,15 @@ numbering are standard Word features. The cover fonts (Aptos, Agency FB) come wi
 Microsoft 365, and older versions substitute similar fonts.
 
 **Can it edit a document that is open in Word?**
-Not yet. Each change rebuilds the file, so close it in Word first; otherwise a copy named
-`… (new).docx` is saved. Edits you make by hand in Word are not kept when the AI rebuilds the document,
-so make your own final touches last.
+Yes, with desktop Word on Windows (Word 2013, 2016, 2019, 2021, 2024 and Microsoft 365). Ask *"open
+it in Word"*, or open it yourself. While it is open, section changes and find-and-replace go straight
+into the open window: only the changed part is swapped, Word renumbers figures and cross-references
+and saves, and everything you typed by hand elsewhere stays. Changes that touch the whole document
+(cover details, border, page numbers) still need the file closed.
+
+When the file is closed and you have edited it by hand since it was generated, the AI stops and asks
+before rebuilding, so your edits are never lost silently. Word for Mac and Word for the web are not
+supported for live editing; close the file there before asking for changes.
 
 **Does it need the internet?**
 Only to look up references by DOI, ISBN or URL. Everything else, including drawing and checking, runs

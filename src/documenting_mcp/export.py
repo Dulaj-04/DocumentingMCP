@@ -48,6 +48,17 @@ def _with_word(docx: Path, pdf: Path | None) -> bool:
         import win32com.client
     except ImportError:
         return False
+    from . import live_word
+
+    already_open = live_word.find_open_document(docx)
+    if already_open is not None:  # the student has it open: use that window and leave it open
+        try:
+            live_word.finish(already_open)
+            if pdf is not None:
+                already_open.ExportAsFixedFormat(str(pdf.resolve()), 17)
+            return pdf is None or pdf.is_file()
+        except Exception:
+            return False
     _strip_update_prompt(docx)
     pythoncom.CoInitialize()
     word = None

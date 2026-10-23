@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+
+**Live editing in Word (Windows)**
+- `open_in_word` opens a document in desktop Word (2013 or later, including Microsoft 365).
+- While a document is open in Word, `update_section`, `insert_section`, `delete_section` and
+  `replace_text` change it in place: only the affected section is swapped for a freshly built copy,
+  then Word refreshes fields and saves. Hand edits elsewhere are kept.
+- `export_pdf` uses the open window instead of starting a second copy of Word.
+- Hand-edit guard: if a closed document was changed in Word after it was generated, a rebuild stops
+  and asks first (`overwrite_manual_edits=true` to go ahead).
+
 ## 1.0.0
 
 First complete release.

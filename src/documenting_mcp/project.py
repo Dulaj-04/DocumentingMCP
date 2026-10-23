@@ -30,6 +30,7 @@ class DocSource:
     options: dict = field(default_factory=dict)
     references: list[dict] = field(default_factory=list)
     approvals: dict = field(default_factory=dict)  # figure key -> content digest the student approved
+    built_hash: str = ""  # sha1 of the .docx as last written by us (or saved by Word after a live edit)
 
 
 def sidecar_for(docx_path: str | Path) -> Path:
@@ -37,6 +38,12 @@ def sidecar_for(docx_path: str | Path) -> Path:
     if p.name.endswith(SIDECAR_SUFFIX):
         return p
     return p.with_name(p.stem + SIDECAR_SUFFIX)
+
+
+def file_hash(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha1(Path(path).read_bytes()).hexdigest() if Path(path).is_file() else ""
 
 
 def save_source(docx_path: Path, src: DocSource) -> Path:
