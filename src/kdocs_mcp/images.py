@@ -241,10 +241,13 @@ def _paragraphs(lines: list[str], start: int, end: int) -> list[tuple[int, str]]
 def suggest_placement(body_markdown: str, project: str = "", max_per_section: int = 3) -> dict:
     """Match library images to the report's sections by what each image shows and what each section says.
 
-    The result is advice, not a decision: the AI must still check the match, and the student confirms."""
+    Also proposes which images belong together as a row, a sensible order within each section, where an
+    image already used elsewhere would also fit, and whether the report is getting crowded with images.
+    The result is advice, not a decision: the AI must still check it and the student confirms."""
+    from . import image_plan
     from . import project as proj
 
-    lib = list_library(project).get("images", [])
+    lib_images = list_library(project).get("images", [])
     used = set(re.findall(r"!\[[^\]]*\]\(([^)\s]+)", body_markdown))
     used_names = {Path(u).name for u in used}
     lines = body_markdown.splitlines()
@@ -252,44 +255,56 @@ def suggest_placement(body_markdown: str, project: str = "", max_per_section: in
     sec_info = []
     for k, h in enumerate(heads):
         stop = heads[k + 1].start if k + 1 < len(heads) else len(lines)
-        # a section's own text: up to the next heading of any level
-        paras = _paragraphs(lines, h.start + 1, stop)
+        paras = _paragraphs(lines, h.start + 1, stop)  # a section's own text, up to the next heading
         sec_info.append((h, paras))
     img_tokens = {}
     undescribed = []
-    for im in lib:
+    for im in lib_images:
         text = " ".join([Path(im["file"]).stem, im.get("description", ""), " ".join(im.get("tags", []))])
         img_tokens[im["path"]] = _tokens(text)
         if not im.get("description"):
             undescribed.append(im["path"])
     suggestions = []
     matched: set[str] = set()
+    reuse = []
     for h, paras in sec_info:
         title_t = _tokens(h.title)
         body_t = _tokens(" ".join(t for _, t in paras))
-        cands = []
-        for im in lib:
-            if im["file"] in used_names:
-                continue
+        cands, also = [], []
+        for im in lib_images:
             toks = img_tokens[im["path"]]
             score = 3 * len(toks & title_t) + len(toks & body_t)
             if score < 2:
                 continue
-            best = max(paras, key=lambda p_: len(toks & _tokens(p_[1])), default=None)
-            after = best[1][:70] if best and toks & _tokens(best[1]) else ""
-            cands.append({"image": im["path"], "score": score, "description": im.get("description", ""),
-                          "shape": im.get("shape", ""), "after_text": after})
+            ranked = [(len(toks & _tokens(p_[1])), n, p_) for n, p_ in enumerate(paras)]
+            top = max(ranked, default=None)
+            hit = top is not None and top[0] > 0
+            entry = {"image": im["path"], "score": score, "description": im.get("description", ""), "shape": im.get("shape", ""),
+                     "after_text": top[2][1][:70] if hit else "", "para_index": top[1] if hit else None}
+            if im["file"] in used_names:
+                if score >= 4:
+                    also.append({k: entry[k] for k in ("image", "score", "description", "after_text")})
+            else:
+                cands.append(entry)
         cands.sort(key=lambda c: -c["score"])
+        cands = cands[:max_per_section]
+        if also:
+            reuse.append({"section": h.title, "images_already_used_elsewhere": also[:2],
+                          "note": "the same image can be used again here if it supports this section too (ask the student)"})
         if cands:
-            matched.update(c["image"] for c in cands[:max_per_section])
-            suggestions.append({"section": h.title, "candidates": cands[:max_per_section]})
+            matched.update(c["image"] for c in cands)
+            ordered, basis = image_plan.order_candidates(cands)
+            groups = image_plan.group_candidates(ordered)
+            suggestions.append({"section": h.title, "candidates": ordered, "order_basis": basis, "groups": groups})
     return {
         "suggestions": suggestions,
-        "not_matched_anywhere": [im["path"] for im in lib if im["path"] not in matched and im["file"] not in used_names],
-        "already_in_report": sorted(used_names & {im["file"] for im in lib}),
+        "could_also_fit": reuse,
+        "not_matched_anywhere": [im["path"] for im in lib_images if im["path"] not in matched and im["file"] not in used_names],
+        "already_in_report": sorted(used_names & {im["file"] for im in lib_images}),
         "needs_description": undescribed,
-        "how_to_use": "Check each match yourself. Place an image only where the text refers to what it shows, and "
-        "ask the student about unmatched ones. Use place_image to insert, then refer to it in the text.",
+        "crowding_in_current_report": image_plan.crowding(body_markdown),
+        "how_to_use": "Check each match yourself. Show the student the proposed groups, order, sizes and positions and "
+        "get their agreement, then insert with place_images (preview first, then confirmed=true).",
     }
 
 

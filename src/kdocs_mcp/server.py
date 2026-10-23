@@ -15,7 +15,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field, create_model
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import __version__, export, images as image_library, ingest, live_word, planning, project, quality, references
+from . import __version__, export, image_plan, images as image_library, ingest, live_word, planning, project, quality, references
 from .builder import BuildOptions, CoverInfo, build_report
 from .guides import guide_for
 from .profile import Profile, load_profile, save_profile
@@ -44,7 +44,7 @@ mcp = MCPServer(
         "what was done, show the result, and ask whether to continue or change something. Never run the "
         "whole job silently.\n"
         "Tools along the way: extract_assignment_brief/read_source for briefs and notes, get_writing_guide, "
-        "list_files, import_images/describe_image/rename_image/list_images, suggest_image_placement/place_image, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
+        "list_files, import_images/describe_image/rename_image/list_images, suggest_image_placement/place_images (preview, then confirmed=true after the student agrees), ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
         "create_document(plan_id=...), review_figures + approve_figures (student approves every figure), "
         "update_section/replace_text for changes (applied live if the document is open in Word; open_in_word "
         "offers that; never pass overwrite_manual_edits=true without the student's consent), "
@@ -220,70 +220,67 @@ def suggest_image_placement(docx_path: str = "", body_markdown: str = "", projec
     return image_library.suggest_placement(body_markdown, project)
 
 
+def _place(docx_path: str, plan: list[dict], confirmed: bool, export_pdf: bool, overwrite_manual_edits: bool) -> dict:
+    src = load_source(docx_path)
+    prev = image_plan.preview(src.body_markdown, plan)
+    if prev["problems"]:
+        return {"error": " ".join(prev["problems"]), "problems": prev["problems"]}
+    if not confirmed:
+        prev.pop("new_markdown")
+        return {
+            "needs_confirmation": True,
+            "nothing_changed": True,
+            "instructions": "Show the student this plan in plain words: for each placement the section, the paragraph it "
+            "follows, the order within the section, and the size. Ask the questions in ask_the_student. Adjust the plan "
+            "to their answers (use `order`, `width`, `after_text`), preview again if it changed, and only when they "
+            "agree call again with confirmed=true. Never confirm on the student's behalf.",
+            **prev,
+        }
+    src.body_markdown = prev["new_markdown"]
+    titles = list(dict.fromkeys(p["section"] for p in prev["placements"]))
+
+    def live(doc, built):
+        return all(live_word.replace_section_live(doc, ttl, built, ttl) for ttl in titles)
+
+    out = _rebuild(docx_path, src, export_pdf, f"Placed {len(prev['placements'])} image placement(s).", live, overwrite_manual_edits)
+    if "error" not in out:
+        out["placed"] = [{k: p[k] for k in ("section", "images", "after")} for p in prev["placements"]]
+        out["crowding"] = prev["crowding"]
+        out["layout_estimates"] = prev["layout_estimates"]
+    return out
+
+
+@mcp.tool()
+def place_images(docx_path: str, plan: list[dict], confirmed: bool = False, export_pdf: bool = False,
+                 overwrite_manual_edits: bool = False) -> dict:
+    """Place several library images in one go, after the student has approved the plan.
+
+    plan: a list of placements, each with
+        image: file name or library path.   section: heading / outline number / "Q2".
+        caption: the small text under the image (default: its saved description).
+        after_text: a few words from the paragraph it should follow (default: end of the section's text).
+        width: optional size: small | medium | large | full, a percentage, or inches.
+        label: id such as "rc-circuit" so the text can refer to it with @fig:rc-circuit.
+        side_by_side_with: other images for the same row (2 or 3 in total).
+        order: optional number; lower numbers are placed first.
+    Call it first WITHOUT confirmed: nothing is changed, and you get the order, positions, sizes, warnings
+    about crowding and estimated page gaps, and questions to ask the student. Change the plan as they
+    answer. Call with confirmed=true only after the student has agreed to the order, the sizes and the
+    positions. Never confirm for them.
+    """
+    return _place(docx_path, plan, confirmed, export_pdf, overwrite_manual_edits)
+
+
 @mcp.tool()
 def place_image(docx_path: str, image: str, section: str, caption: str = "", after_text: str = "",
-                width: str = "", label: str = "", side_by_side_with: list[str] | None = None, export_pdf: bool = False,
-                overwrite_manual_edits: bool = False) -> dict:
-    """Insert an image from the library into a section of an existing document, at a chosen spot.
-
-    image: file name or library path. section: heading text / outline number / "Q2".
-    caption: the small text under the image; if empty, the description saved for the image is used. Write
-        it as a short plain sentence saying what the image shows.
-    after_text: a few words from the paragraph the image should follow (it goes after that paragraph).
-        Empty: at the end of the section's own text, before any sub-heading.
-    width: optional, e.g. "60%" (a single image) - default sizes it to fit.
-    label: a short id such as "rc-circuit". The image becomes a numbered "Figure n" that the text can point
-        to with @fig:rc-circuit. Give one whenever the text refers to the image.
-    side_by_side_with: other library images to put on the same line as `image` (2 or 3 images in total).
-    Remember to mention the image in the text ("as shown in Figure n"), and show the student where it went.
-    """
-    src = load_source(docx_path)
-    names = [image] + list(side_by_side_with or [])
-    index = image_library.load_index()
-    parts = []
-    for i, name in enumerate(names):
-        f = image_library.find(name)
-        if f is None:
-            return {"error": f"No such image in the library: {name}"}
-        own = index.get(image_library._key(f), {}).get("description", "")
-        text = (caption if len(names) == 1 and caption else own).strip()
-        if len(names) > 1:
-            text = f"({chr(97 + i)}) {text}" if text else f"({chr(97 + i)})"
-        bits = []
-        if i == 0 and label:
-            bits.append("#fig:" + re.sub(r"[^A-Za-z0-9_-]+", "-", label.strip().removeprefix("fig:")))
-        if width and len(names) == 1:
-            bits.append(f"width={width}")
-        if i == 0 and len(names) > 1 and caption:  # one shared caption for the whole row
-            bits.append('caption="' + caption.replace('"', "'") + '"')
-        attrs = "{" + " ".join(bits) + "}" if bits else ""
-        parts.append(f"![{text}]({f.name}){attrs}")
-    line = " ".join(parts)
-
-    sec = project.find_section(src.body_markdown, section)
-    lines = src.body_markdown.splitlines()
-    own_end = sec.end
-    for h in project.sections(src.body_markdown):  # stop at the first sub-heading
-        if h.start > sec.start and h.start < own_end:
-            own_end = h.start
-            break
-    at = own_end
-    if after_text:
-        needle = after_text.lower().strip()
-        hit = next((i for i in range(sec.start + 1, own_end) if needle in lines[i].lower()), None)
-        if hit is None:
-            return {"error": f"Could not find '{after_text}' in section '{sec.title}'. Use a few exact words from the paragraph."}
-        at = hit + 1
-        while at < own_end and lines[at].strip():  # end of that paragraph
-            at += 1
-    while at > sec.start + 1 and not lines[at - 1].strip():
-        at -= 1
-    lines[at:at] = ["", line, ""]
-    new_section = "\n".join(lines[sec.start : sec.end + 3])
-    out = update_section(docx_path, section, new_section, export_pdf, overwrite_manual_edits)
-    if "error" not in out:
-        out["placed"] = {"image": names, "section": sec.title, "after": after_text or "(end of the section's text)"}
-    return out
+                width: str = "", label: str = "", side_by_side_with: list[str] | None = None,
+                confirmed: bool = False, export_pdf: bool = False, overwrite_manual_edits: bool = False) -> dict:
+    """Place one image (or one side-by-side row) from the library. Same rules as place_images: the first
+    call only previews and returns the questions to ask the student; call again with confirmed=true once
+    they agree. See place_images for the meaning of each field."""
+    item = {"image": image, "section": section, "caption": caption, "after_text": after_text, "width": width,
+            "label": label, "side_by_side_with": side_by_side_with or []}
+    return _place(docx_path, [item], confirmed, export_pdf, overwrite_manual_edits)
 
 
 PageNumbers = Literal["none", "bottom-center", "bottom-right"]

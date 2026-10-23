@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.0
+
+**Several images at once**
+- `place_images` places a whole plan in one step. It always previews first (order, the paragraph each
+  image follows, size, warnings, questions) and changes nothing until it is called again with
+  `confirmed=true` after the student agrees. `place_image` follows the same rule.
+- `suggest_image_placement` now proposes rows for images that look like a set, an order for each section
+  (text order, then numbered file names) with how sure it is, and images already used that would also fit
+  another section.
+- Crowding check: images stacked with almost no text between them, or more images than the text can
+  carry. Also reported by `check_document`.
+- Estimated page gaps: warns when an image would not fit under the text and leave a large blank space,
+  and suggests shrinking it a little or moving a paragraph.
+
 ## 1.5.0
 
 **Image sizing**

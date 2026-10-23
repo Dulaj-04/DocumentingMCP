@@ -358,6 +358,23 @@ def image_workflow() -> None:
     save(card(Image.open(WORK / "imgflow.png"), 520), "image-workflow.png")
 
 
+def image_confirmation() -> None:
+    render_flowchart(
+        """flowchart TD
+          A[Match images to sections] --> B[Group related images<br>into side-by-side rows]
+          B --> C[Order each section:<br>text order, then numbered names]
+          C --> D[Check size, crowding<br>and likely page gaps]
+          D --> E[Preview shown to you:<br>order, positions, sizes]
+          E --> F{You agree?}
+          F -- Change something --> C
+          F -- Yes --> G[Images placed]
+          G --> H([Report rebuilt,<br>or updated live in Word])
+        """,
+        WORK / "imgconfirm.png",
+    )
+    save(card(Image.open(WORK / "imgconfirm.png"), 520), "image-confirmation.png")
+
+
 def _labelled(size, colour, text, name):
     im = Image.new("RGB", size, colour)
     d = ImageDraw.Draw(im)
@@ -407,5 +424,6 @@ if __name__ == "__main__":
     tables_and_borders()
     image_rows()
     image_workflow()
+    image_confirmation()
     image_sizing()
     shutil.rmtree(WORK, ignore_errors=True)

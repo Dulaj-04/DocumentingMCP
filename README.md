@@ -313,6 +313,36 @@ Result → Discussion → Conclusion.
 
 > Rename the second photo to "dac-output-5v" and update the report.
 
+**Several images at once: planned together, confirmed by you.** When a report has many images the AI
+plans them as a set instead of dropping them in one by one.
+
+<table>
+<tr>
+<td width="38%"><img src="docs/images/image-confirmation.png" alt="Planning several images and confirming the plan before anything is placed"></td>
+<td>
+
+- **Grouping:** images that belong together (the same trace at 1 kHz and 2 kHz, before and after,
+  input and output) are suggested as a side-by-side row.
+- **Order:** within a section, in the order the text discusses them, then by numbered file name
+  (`step-2` before `step-10`). If the order is only a guess, the AI asks you.
+- **Not crowded:** it warns about images stacked with almost no text between them, and about a section
+  with more pictures than words to explain them.
+- **Page gaps:** it estimates where an image would not fit under the text and leave a big blank space,
+  and offers a fix (a slightly smaller image, or a paragraph moved after it).
+- **Reuse:** an image already used can be offered again for a second section it also supports.
+- **One go:** the whole plan is placed in a single step, not one rebuild per image.
+- **You confirm first:** before anything is placed you see the order, the paragraph each image follows,
+  the size of each, and any warnings. Nothing changes until you agree, and you can change the order,
+  sizes or positions first.
+
+</td>
+</tr>
+</table>
+
+> Put all my Lab 4 photos in the report. Show me the plan first: order, sizes and where each goes.
+
+> Swap the order of the last two, and make the circuit photo bigger.
+
 **Sizing: not too small, not too large.** Each image is sized for what it is:
 
 | Image | Shown as |
@@ -467,7 +497,8 @@ The AI calls these for you. The list shows what the server can do.
 | Your material | `extract_assignment_brief` | Pull the module, title, date, instructions, questions and marks from a brief |
 | | `read_source`, `list_files` | Read PDF/DOCX/XLSX/text/code; list your photos and screenshots |
 | | `import_images`, `list_images`, `describe_image`, `rename_image` | Collect images from your Downloads folder, name them by content, record what each shows, rename later (reports are updated) |
-| | `suggest_image_placement`, `place_image` | Decide which images belong and where, then insert them after the right paragraph with a line of text below |
+| | `suggest_image_placement` | Which images belong where; which go together as a row; order; crowding; images that could be reused |
+| | `place_images`, `place_image` | Preview the plan (order, positions, sizes, page gaps) for your approval, then place the images with a line of text below each |
 | | `spreadsheet_to_table` | Excel/CSV readings → table |
 | Drawings | `make_plot`, `make_diagram`, `make_circuit` | Preview a graph, block diagram or circuit |
 | Figures | `review_figures`, `approve_figures` | Critical review of each figure, and your approval |

@@ -185,12 +185,32 @@ they made a folder, save it once with `set_profile(image_dir=...)`; every image 
   with text; three is for simple pictures. Heed any warning that a row image is too small to read.
 - After building, read `warnings` in the result. Fix every sizing warning before showing the student.
 
+**Several images: plan them together, then get the student's confirmation**
+- `suggest_image_placement` also returns `groups` (images that look like a set: the same thing at
+  different settings, before/after, input/output), the proposed order in each section with its basis
+  (`order_basis`), `could_also_fit` (an image already used that would also support another section) and
+  `crowding_in_current_report`.
+- Order: the order the text discusses the images, then numbered file names (`step-2` before `step-10`).
+  If `order_basis` says the order is a guess, ask the student. Steps of a procedure follow the procedure.
+- Keep related images together as a row; do not stack three single images with a line of text between.
+  A section with many images needs text that explains each one. If the crowding notes say it is crowded,
+  group images, add the explanation, or drop the weakest image.
+- Reuse an image in a second place only when it really supports both sections, and say so.
+- Use `place_images` for the whole plan. **Its first call changes nothing**: it returns the order, the
+  paragraph each image follows, each image's size, sizing notes, crowding warnings, estimated page gaps
+  and `ask_the_student`. Present that in plain words and ask about **the order, the sizes and the
+  positions**. Change the plan to match the answers (`order`, `width`, `after_text`, `side_by_side_with`)
+  and preview again if anything changed. Call with `confirmed=true` only after the student agrees.
+  Never confirm on their behalf, and never place images without this step.
+- Estimated page gaps are only estimates. If one is reported, offer the fix (a slightly smaller image, or
+  a paragraph moved after it) and check the real result after `export_pdf`.
+
 **Text under every image**
 8. Every image carries a small line saying what it shows: `![Oscilloscope trace at 1 kHz](scope-1khz.png)`.
    One sentence, plain, no "this image shows". In a row each image gets (a), (b) and the row shares one
    caption.
 9. Show the student the planned placements (image, section, after which paragraph) and apply them with
-   `place_image` once they agree. The same image may be used in more than one place if it supports both.
+   `place_images` once they agree (see below). The same image may be used in more than one place if it supports both.
 
 Image paths may be absolute, or relative to `assets_dir`. Use `list_files` to see what images the
 student has. Never invent image paths. If a required screenshot or photo is missing, write a short

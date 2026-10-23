@@ -153,6 +153,17 @@ def check_document(
             elif len(m.group(1).split()) > 40:
                 add("info", m.group(2), f"The text under '{Path(m.group(2)).name}' is long. Keep it to a sentence.")
 
+    if markdown and "![" in markdown:
+        try:
+            from . import image_plan
+
+            for n in image_plan.crowding(markdown):
+                add("warning", n["where"], n["message"])
+            for n in image_plan.layout_notes(markdown):
+                add("info", n["where"], n["message"])
+        except Exception:
+            pass
+
     # Spelling: known typos first, then a dictionary pass
     lower_counts = Counter(w.lower().strip("'’-") for w in words)
     for typo, fix in COMMON_TYPOS.items():

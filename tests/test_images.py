@@ -156,11 +156,11 @@ def test_place_image_inserts_after_the_chosen_paragraph(home):
     server.import_images([str(src[0]), str(src[1])], names=["scope-1khz", "scope-2khz"],
                          descriptions=["Output trace at 1 kHz", "Output trace at 2 kHz"])
     res = server.create_document(template="assignment", title="T", body_markdown=BODY, filename="pl")
-    out = server.place_image(res["docx"], "scope-1khz.jpg", "Procedure", after_text="input was set to 1 kHz", label="trace")
-    assert "error" not in out and out["placed"]["section"] == "Procedure"
+    out = server.place_image(res["docx"], "scope-1khz.jpg", "Procedure", after_text="input was set to 1 kHz", label="trace", confirmed=True)
+    assert "error" not in out and out["placed"][0]["section"] == "Procedure"
     body = server.get_document_source(res["docx"])["body_markdown"]
     assert body.index("read from the oscilloscope") < body.index("![Output trace at 1 kHz](scope-1khz.jpg){#fig:trace}") < body.index("# Observations")
-    out = server.place_image(res["docx"], "scope-1khz.jpg", "Observations", side_by_side_with=["scope-2khz.jpg"], caption="Output at two frequencies")
+    out = server.place_image(res["docx"], "scope-1khz.jpg", "Observations", side_by_side_with=["scope-2khz.jpg"], caption="Output at two frequencies", confirmed=True)
     assert "error" not in out
     body = server.get_document_source(res["docx"])["body_markdown"]
     assert "![(a) Output trace at 1 kHz](scope-1khz.jpg){caption=\"Output at two frequencies\"} ![(b) Output trace at 2 kHz](scope-2khz.jpg)" in body
@@ -231,3 +231,108 @@ def test_oversized_and_low_resolution_images_produce_warnings(home):
     d = docx.Document(res["docx"])
     heights = [s.height / 914400 for s in d.inline_shapes][1:]  # skip the cover crest
     assert max(heights) <= image_library.MAX_H_PORTRAIT + 0.05
+
+
+# --------------------------------------------------------------------------- several images: grouping, order, confirmation, crowding
+
+from kdocs_mcp import image_plan  # noqa: E402
+
+
+def _set(home, n=4):
+    folder = home / "phone"
+    folder.mkdir(exist_ok=True)
+    files = []
+    for i in range(n):
+        f = folder / f"raw{i}.png"
+        Image.new("RGB", (1200, 800), "white").save(f)
+        files.append(str(f))
+    return files
+
+
+MULTI = """# Procedure
+
+The circuit was built on the breadboard as in the circuit diagram.
+
+The input was set to 1 kHz and the output trace was recorded.
+
+Then the input was set to 2 kHz and the output trace was recorded again.
+
+# Observations
+
+The output amplitude fell as the frequency rose.
+"""
+
+
+def test_a_nothing_changes_until_the_student_confirms(home):
+    files = _set(home, 2)
+    server.import_images(files, names=["scope-1khz", "scope-2khz"], descriptions=["Output trace at 1 kHz", "Output trace at 2 kHz"])
+    res = server.create_document(template="assignment", title="T", body_markdown=MULTI, filename="cf")
+    before = server.get_document_source(res["docx"])["body_markdown"]
+    prev = server.place_images(res["docx"], [{"image": "scope-1khz.png", "section": "Procedure", "after_text": "1 kHz and the output"}])
+    assert prev["needs_confirmation"] and prev["nothing_changed"]
+    assert prev["placements"][0]["sizes"][0]["shown_width_in"] > 0
+    assert prev["ask_the_student"] and "new_markdown" not in prev
+    assert server.get_document_source(res["docx"])["body_markdown"] == before  # untouched
+    done = server.place_images(res["docx"], [{"image": "scope-1khz.png", "section": "Procedure", "after_text": "1 kHz and the output"}], confirmed=True)
+    assert "error" not in done and "scope-1khz.png" in server.get_document_source(res["docx"])["body_markdown"]
+
+
+def test_several_images_keep_the_order_they_are_given_for_one_paragraph(home):
+    files = _set(home, 3)
+    server.import_images(files, names=["step-1", "step-2", "step-10"], descriptions=["Step one", "Step two", "Step ten"])
+    res = server.create_document(template="assignment", title="T", body_markdown=MULTI, filename="ord")
+    plan = [{"image": n, "section": "Procedure", "after_text": "breadboard as in"} for n in ("step-10.png", "step-1.png", "step-2.png")]
+    prev = server.place_images(res["docx"], plan)
+    assert [p["images"][0] for p in prev["placements"]] == ["step-10.png", "step-1.png", "step-2.png"]
+    plan2 = [{**item, "order": n} for n, item in zip((3, 1, 2), plan)]  # the student chose another order
+    prev2 = server.place_images(res["docx"], plan2)
+    assert [p["images"][0] for p in prev2["placements"]] == ["step-1.png", "step-2.png", "step-10.png"]
+    server.place_images(res["docx"], plan2, confirmed=True)
+    body = server.get_document_source(res["docx"])["body_markdown"]
+    assert body.index("step-1.png") < body.index("step-2.png") < body.index("step-10.png")
+
+
+def test_numbered_names_sort_naturally_and_pairs_are_grouped():
+    assert sorted(["scope-10.png", "scope-2.png", "scope-1.png"], key=image_plan.natural_key) == ["scope-1.png", "scope-2.png", "scope-10.png"]
+    cands = [{"image": "scope-1khz.png", "description": "Trace at 1 kHz"}, {"image": "scope-2khz.png", "description": "Trace at 2 kHz"},
+             {"image": "bench.png", "description": "The bench"}]
+    groups = image_plan.group_candidates(cands)
+    assert len(groups) == 1 and groups[0]["images"] == ["scope-1khz.png", "scope-2khz.png"]
+    ba = [{"image": "wave-before.png", "description": "Waveform before filtering"}, {"image": "wave-after.png", "description": "Waveform after filtering"}]
+    assert image_plan.group_candidates(ba)
+
+
+def test_suggestions_include_groups_order_and_reuse(home):
+    files = _set(home, 3)
+    server.import_images(files, names=["scope-1khz", "scope-2khz", "breadboard-circuit"],
+                         descriptions=["Output trace at 1 kHz on the oscilloscope", "Output trace at 2 kHz on the oscilloscope",
+                                       "Circuit built on the breadboard"])
+    out = server.suggest_image_placement(body_markdown=MULTI)
+    proc = next(s for s in out["suggestions"] if s["section"] == "Procedure")
+    assert proc["order_basis"] and any(set(g["images"]) == {"scope-1khz.png", "scope-2khz.png"} for g in proc["groups"])
+    # the circuit photo is used in Procedure, but Observations talks about the output too: reuse is raised only if it fits
+    md_used = MULTI.replace("# Observations", "![Circuit built on the breadboard](breadboard-circuit.png)\n\n# Observations")
+    again = server.suggest_image_placement(body_markdown=md_used)
+    assert "breadboard-circuit.png" in again["already_in_report"]
+
+
+def test_stacked_images_and_crowded_sections_are_flagged(home):
+    files = _set(home, 3)
+    server.import_images(files, names=["a", "b", "c"])
+    md = "# Results\n\nShort text.\n\n![One](a.png)\n\n![Two](b.png)\n\n![Three](c.png)\n"
+    notes = image_plan.crowding(md)
+    assert any("stacked" in n["message"] for n in notes) and any("only about" in n["message"] for n in notes)
+    res = server.create_document(template="assignment", title="T", body_markdown=md, filename="crowd")
+    report = server.check_document(res["docx"])
+    assert any("stacked" in i["message"] for i in report["issues"])
+    spaced = "# Results\n\n" + "\n\n".join(f"{'Words about the picture. ' * 12}\n\n![{x}]({x.lower()}.png)" for x in ("A", "B"))
+    assert not any("stacked" in n["message"] for n in image_plan.crowding(spaced))
+
+
+def test_page_gap_estimate_notices_an_image_that_cannot_fit(home):
+    files = _set(home, 1)
+    server.import_images(files, names=["wide"])
+    filler = "\n\n".join("A sentence of ordinary text that fills a line. " * 6 for _ in range(10))
+    md = f"# Results\n\n{filler}\n\n![Wide](wide.png)\n"
+    assert any("blank at the bottom" in n["message"] for n in image_plan.layout_notes(md))
+    assert not image_plan.layout_notes("# Results\n\nShort.\n\n![Wide](wide.png)\n")
