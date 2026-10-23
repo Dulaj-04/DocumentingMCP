@@ -59,7 +59,7 @@ def lookup(identifier: str, timeout: float = 15.0, transport=None) -> dict:
     ident = identifier.strip()
     doi = re.search(r"(10\.\d{4,9}/[^\s\"<>]+)", ident)
     isbn = re.sub(r"[^0-9Xx]", "", ident) if re.fullmatch(r"(?:ISBN[: ]*)?[0-9Xx\- ]{10,17}", ident, re.I) else ""
-    headers = {"User-Agent": "DocumentingMCP/0.2 (student report generator)"}
+    headers = {"User-Agent": "KDocs MCP/0.2 (student report generator)"}
     with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers, transport=transport) as client:
         if doi:
             r = client.get(f"https://api.crossref.org/works/{doi.group(1)}")

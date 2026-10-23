@@ -1,6 +1,6 @@
 """Editable document sources.
 
-Every generated .docx gets a sidecar `<name>.docmcp.json` holding the Markdown body and settings. Edits
+Every generated .docx gets a sidecar `<name>.kdocs.json` holding the Markdown body and settings. Edits
 are applied to that source and the document is rebuilt, so formatting stays exactly in the master
 style no matter how many times a section is changed.
 """
@@ -12,7 +12,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-SIDECAR_SUFFIX = ".docmcp.json"
+SIDECAR_SUFFIX = ".kdocs.json"
+LEGACY_SIDECAR_SUFFIX = ".docmcp.json"  # documents made before the rename
 
 
 @dataclass
@@ -35,9 +36,11 @@ class DocSource:
 
 def sidecar_for(docx_path: str | Path) -> Path:
     p = Path(docx_path).expanduser()
-    if p.name.endswith(SIDECAR_SUFFIX):
+    if p.name.endswith((SIDECAR_SUFFIX, LEGACY_SIDECAR_SUFFIX)):
         return p
-    return p.with_name(p.stem + SIDECAR_SUFFIX)
+    new = p.with_name(p.stem + SIDECAR_SUFFIX)
+    old = p.with_name(p.stem + LEGACY_SIDECAR_SUFFIX)
+    return old if old.is_file() and not new.is_file() else new
 
 
 def file_hash(path: Path) -> str:
@@ -56,7 +59,7 @@ def load_source(docx_path: str | Path) -> DocSource:
     path = sidecar_for(docx_path)
     if not path.is_file():
         raise FileNotFoundError(
-            f"No editable source found for {Path(docx_path).name}. Only documents created by DocumentingMCP "
+            f"No editable source found for {Path(docx_path).name}. Only documents created by KDocs MCP "
             f"can be edited section by section (expected {path.name} next to the .docx)."
         )
     data = json.loads(path.read_text(encoding="utf-8"))

@@ -1,4 +1,4 @@
-"""Regenerate the README images with DocumentingMCP's own drawing tools.
+"""Regenerate the README images with KDocs MCP's own drawing tools.
 
     uv run python docs/make_images.py
 
@@ -19,11 +19,11 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "images"
 WORK = Path(tempfile.mkdtemp())
-os.environ["DOCUMENTING_MCP_HOME"] = str(WORK / "home")
+os.environ["KDOCS_MCP_HOME"] = str(WORK / "home")
 
-from documenting_mcp import server  # noqa: E402
-from documenting_mcp.diagrams import render_circuit, render_flowchart  # noqa: E402
-from documenting_mcp.plots import make_plot  # noqa: E402
+from kdocs_mcp import server  # noqa: E402
+from kdocs_mcp.diagrams import render_circuit, render_flowchart  # noqa: E402
+from kdocs_mcp.plots import make_plot  # noqa: E402
 
 server.set_profile(name="A B C Student", reg_no="D/ENG/EE/25/0000", intake="42", output_dir=str(WORK / "out"))
 BG = (246, 247, 249)
@@ -97,7 +97,7 @@ def architecture() -> None:
     render_flowchart(
         """flowchart LR
           S([You]) -->|chat| AI[Claude / ChatGPT<br>Desktop]
-          AI -->|MCP tool calls| M[DocumentingMCP<br>server]
+          AI -->|MCP tool calls| M[KDocs MCP<br>server]
           IN[/Brief, notes,<br>data, photos/] --> M
           M --> P[Plan +<br>checklist]
           M --> B[Builder:<br>house style]

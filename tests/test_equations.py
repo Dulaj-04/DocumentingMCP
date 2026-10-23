@@ -3,9 +3,9 @@ import zipfile
 import docx
 import pytest
 
-from documenting_mcp import server
-from documenting_mcp.latex_prep import prepare
-from documenting_mcp.omml import M, latex_to_omml
+from kdocs_mcp import server
+from kdocs_mcp.latex_prep import prepare
+from kdocs_mcp.omml import M, latex_to_omml
 
 
 @pytest.mark.parametrize(
@@ -45,8 +45,8 @@ def test_omml_is_native_and_upright():
 
 
 def test_numbered_equations(tmp_path, monkeypatch):
-    monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path))
-    monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
+    monkeypatch.setenv("KDOCS_MCP_HOME", str(tmp_path))
+    monkeypatch.setenv("KDOCS_MCP_REQUIRE_PLAN", "0")
     server.set_profile(output_dir=str(tmp_path / "out"))
     body = "# Q\n\n$$V = IR \\tag{7}$$\n\n$$P = VI$$\n\n$$E = Pt \\notag$$\n"
     res = server.create_document(template="assignment", title="T", body_markdown=body, number_equations=True)

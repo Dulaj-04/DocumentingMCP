@@ -26,7 +26,7 @@ Template = Literal["lab_report", "ca_report", "assignment"]
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".emf", ".wmf"}
 
 mcp = MCPServer(
-    "DocumentingMCP",
+    "KDocs MCP",
     version=__version__,
     instructions=(
         "Generates university engineering documents (lab reports, CA/simulation reports, Q&A assignments) "
@@ -90,7 +90,7 @@ def set_profile(
     intake: e.g. "42".
     department: use a newline to control the line break on the cover.
     logo_path: optional custom crest image; the KDU crest is bundled by default.
-    output_dir: folder where documents are saved (default: Documents/DocumentingMCP).
+    output_dir: folder where documents are saved (default: Documents/KDocs).
     """
     p = load_profile()
     for key, val in dict(
@@ -552,7 +552,7 @@ def create_document(
             plan = planning.load(plan_id)
         except FileNotFoundError as exc:
             return {"error": str(exc)}
-    if os.environ.get("DOCUMENTING_MCP_REQUIRE_PLAN", "1") != "0" and not skip_planning:
+    if os.environ.get("KDOCS_MCP_REQUIRE_PLAN", "1") != "0" and not skip_planning:
         if plan is None or plan.status not in ("approved", "in_progress", "done"):
             return {
                 "error": "No approved plan yet. Call start_assignment, show the student the requirements checklist "
@@ -1207,7 +1207,7 @@ def check_similarity(docx_path: str, sources: list[str], threshold_percent: int 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="DocumentingMCP server")
+    parser = argparse.ArgumentParser(description="KDocs MCP server")
     parser.add_argument(
         "--transport",
         choices=["stdio", "http", "sse"],

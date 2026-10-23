@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0
+
+**Renamed to KDocs MCP.** The package is `kdocs_mcp`, the command is `kdocs-mcp`, and the repository is
+`kdocs-mcp`. If you already use it:
+- Change the command in your Claude Desktop config from `documenting-mcp` to `kdocs-mcp` (and the folder
+  path if you re-cloned).
+- Existing documents still work: old `.docmcp.json` files are read as before, and new ones are saved as
+  `.kdocs.json`.
+- The old settings folder (`~/.documenting-mcp`) and `DOCUMENTING_MCP_HOME` are still picked up. New
+  installs use `~/.kdocs-mcp` and `KDOCS_MCP_HOME`.
+
 ## 1.1.0
 
 **Live editing in Word (Windows)**

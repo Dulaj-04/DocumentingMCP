@@ -7,7 +7,7 @@ from pathlib import Path
 import docx
 import pytest
 
-from documenting_mcp import live_word, project, server
+from kdocs_mcp import live_word, project, server
 
 
 class FakeFind:
@@ -163,8 +163,8 @@ def test_delete_and_replace_text_live():
 
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
+    monkeypatch.setenv("KDOCS_MCP_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("KDOCS_MCP_REQUIRE_PLAN", "0")
     server.set_profile(name="A B C Student", reg_no="D/ENG/EE/25/0000", intake="42", output_dir=str(tmp_path / "out"))
     return tmp_path
 

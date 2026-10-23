@@ -6,13 +6,13 @@ import anyio
 import docx
 import pytest
 
-from documenting_mcp import planning, server
+from kdocs_mcp import planning, server
 
 
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path / "home"))
-    monkeypatch.delenv("DOCUMENTING_MCP_REQUIRE_PLAN", raising=False)  # the real, gated behaviour
+    monkeypatch.setenv("KDOCS_MCP_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("KDOCS_MCP_REQUIRE_PLAN", raising=False)  # the real, gated behaviour
     server.set_profile(name="A B C Student", reg_no="D/ENG/EE/25/0000", intake="42", output_dir=str(tmp_path / "out"))
     return tmp_path
 
@@ -98,7 +98,7 @@ def test_form_answers_fill_the_plan():
 
 @pytest.mark.parametrize("width,style,expect", [(0.5, "single", 'w:sz="4"'), (3, "double", 'w:val="double"'), (0, "single", None)])
 def test_border_options(home, monkeypatch, width, style, expect):
-    monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
+    monkeypatch.setenv("KDOCS_MCP_REQUIRE_PLAN", "0")
     res = server.create_document(template="assignment", title="T", body_markdown="# Q\n\nA.\n",
                                  border_width_pt=width, border_style=style)
     xml = _xml(res["docx"])

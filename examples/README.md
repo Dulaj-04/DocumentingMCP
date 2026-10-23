@@ -17,7 +17,7 @@ To build `full_assignment.md` outside a chat (the plan step is skipped for a qui
 
 ```python
 from pathlib import Path
-from documenting_mcp import server
+from kdocs_mcp import server
 
 server.set_profile(name="A B C Student", reg_no="D/ENG/EE/25/0000", intake="42")
 server.create_document(

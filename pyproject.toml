@@ -1,10 +1,10 @@
 [project]
-name = "documenting-mcp"
-version = "1.1.0"
+name = "kdocs-mcp"
+version = "1.2.0"
 description = "MCP server that generates KDU EE lab reports, CA reports and assignments as styled Word documents"
 readme = "README.md"
 authors = [
-    { name = "DocumentingMCP contributors" }
+    { name = "KDocs MCP contributors" }
 ]
 requires-python = ">=3.11"
 dependencies = [
@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.scripts]
-documenting-mcp = "documenting_mcp.server:main"
+kdocs-mcp = "kdocs_mcp.server:main"
 
 [build-system]
 requires = ["uv_build>=0.11.32,<0.12.0"]

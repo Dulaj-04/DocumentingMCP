@@ -13,12 +13,17 @@ BUNDLED_LOGO = Path(__file__).parent / "assets" / "kdu_crest.png"
 
 
 def config_dir() -> Path:
-    return Path(os.environ.get("DOCUMENTING_MCP_HOME", Path.home() / ".documenting-mcp"))
+    env = os.environ.get("KDOCS_MCP_HOME") or os.environ.get("DOCUMENTING_MCP_HOME")
+    if env:
+        return Path(env)
+    old = Path.home() / ".documenting-mcp"  # folder used before the rename
+    new = Path.home() / ".kdocs-mcp"
+    return old if old.is_dir() and not new.exists() else new
 
 
 def default_output_dir() -> Path:
     docs = Path.home() / "Documents"
-    return (docs if docs.is_dir() else Path.home()) / "DocumentingMCP"
+    return (docs if docs.is_dir() else Path.home()) / "KDocs"
 
 
 @dataclass
