@@ -15,7 +15,7 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
 def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
-    server.set_profile(name="W M L M Herath", reg_no="D/ENG/EE/25/0008", intake="42", output_dir=str(tmp_path / "out"))
+    server.set_profile(name="A B C Student", reg_no="D/ENG/EE/25/0000", intake="42", output_dir=str(tmp_path / "out"))
     assets = tmp_path / "imgs"
     assets.mkdir()
     for name in ("debug_memory.png", "lcd_result.png", "dac_block_diagram.png"):
@@ -47,7 +47,7 @@ def test_lab_report(isolated_home):
     texts = [p.text for p in d.paragraphs]
     assert "GENERAL SIR JOHN KOTELAWALA DEFENCE UNIVERSITY" in texts
     assert "ET2263 – EMBEDDED SYSTEMS" in texts
-    assert any(t.startswith("Reg No\tD/ENG/EE/25/0008") for t in texts)
+    assert any(t.startswith("Reg No\tD/ENG/EE/25/0000") for t in texts)
     headings = [p.text for p in d.paragraphs if p.style.name == "Heading 1"]
     assert headings[:3] == ["Aim", "Apparatus", "Theory"]
     assert d.styles["Heading 1"].font.all_caps and d.styles["Heading 1"].font.underline

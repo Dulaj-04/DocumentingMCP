@@ -41,7 +41,7 @@ An ‘I2C_ScanBus()’ routine verified the presence of the LCD using the HAL fu
 | Buffer | Contents | Length (bytes) |
 |---|---|---|
 | `message1` | KDU UNIVERSITY | 15 |
-| `message2` | D/ENG/EE/25/0008 | 17 |
+| `message2` | D/ENG/EE/25/0000 | 17 |
 
 Table: Message buffers observed in the debugger
 

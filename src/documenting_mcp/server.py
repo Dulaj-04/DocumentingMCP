@@ -79,8 +79,8 @@ def set_profile(
 ) -> dict:
     """Save student details once so every document reuses them. Only the fields given are changed.
 
-    name: as it should appear on the cover, e.g. "W M L M Herath".
-    reg_no: e.g. "D/ENG/EE/25/0008".
+    name: as it should appear on the cover, e.g. "A B C Student".
+    reg_no: e.g. "D/ENG/EE/25/0000".
     intake: e.g. "42".
     department: use a newline to control the line break on the cover.
     logo_path: optional custom crest image; the KDU crest is bundled by default.

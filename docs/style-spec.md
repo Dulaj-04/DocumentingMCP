@@ -6,9 +6,9 @@ the MCP server must reproduce.
 
 | Sample | Kind | Module |
 |---|---|---|
-| `Lab_4__EE-0008.pdf` | Lab report | ET2263 Embedded Systems (STM32 + I2C LCD) |
-| `INTAKE42_EE2023_ENG_D_25_0008.docx` | Continuous assessment (CA) report | EE2263 Electrical Motors in Industry (PSCAD sim) |
-| `D_Wickramanayake_..._25_0030.pdf` | Question-and-answer assignment | ET2013 Analog Electronics (DACs) |
+| Sample A (PDF) | Lab report | ET2263 Embedded Systems (STM32 + I2C LCD) |
+| Sample B (DOCX) | Continuous assessment (CA) report | EE2263 Electrical Motors in Industry (PSCAD sim) |
+| Sample C (PDF) | Question-and-answer assignment | ET2013 Analog Electronics (DACs) |
 
 All three were authored in MS Word, so the output must be **.docx** (with optional PDF export).
 
@@ -52,8 +52,8 @@ Top to bottom, everything centered unless noted:
    - Variant: the assignment sample used a condensed display face (Agency FB Bold) for the title. Make it configurable.
 6. Large gap, then the **details block**, left-aligned and indented about 0.5 in from the margin, Times New Roman 12 pt, one line each with spacing between them:
    ```
-   Name ; W M L M Herath
-   Reg No ; D/ENG/EE/25/0008
+   Name ; A B C Student
+   Reg No ; D/ENG/EE/25/0000
    Intake ; 42
    Submission Date ; 31/08/2026
    ```
@@ -84,7 +84,7 @@ the cover to `AIM`. We record the block here for reference only. It may be added
   - Right cell, light-grey shading (`#F2F2F2`), centered, Cambria ~13 pt, three lines:
     `General Sir John Kotelawala Defence University` / `Faculty of Engineering` / `Electronic Laboratory`
 - `Lab <N>: <Title>`: Calibri bold 12 pt.
-- `<Reg No>`, then `<Name>` in the form `W.M.L.M Herath`: bold, blue `#4472C4`, ~13 pt, one per line.
+- `<Reg No>`, then `<Name>` in the form `A.B.C Student`: bold, blue `#4472C4`, ~13 pt, one per line.
 - **Lab info box**: a single-border table with three columns (label | `:` | value) and no inner grid lines. Labels are bold, Times New Roman 11 pt:
   - Module code and name
   - Name of the lab class
@@ -131,7 +131,7 @@ Left-aligned, bold, underlined Times New Roman 16 pt headings, for example:
 
 - Bullets: round `•`, with a hanging indent of about 0.25 in.
 - Units have a space before them (`400 V`, `50 Hz`, `0.05 pu`).
-- Register number format: `D/ENG/EE/25/0008` (programme code EE or ET).
+- Register number format: `D/ENG/EE/25/0000` (programme code EE or ET).
 - Figures have **no captions** in the samples. Captions (`Figure n: …`) will be an optional upgrade, off by default.
 - Avoid the typos in the samples (`DISSCUSSION`, `votage`). Generated text must be spell-checked.
 
@@ -147,7 +147,7 @@ Left-aligned, bold, underlined Times New Roman 16 pt headings, for example:
 
 ## 9. MASTER: the assignment format (authoritative)
 
-The user designated `D_Wickramanayake_..._25_0030.pdf` (ET2013 DAC assignment) as **the master**.
+Sample C (the ET2013 DAC assignment) was designated **the master**.
 Its formatting, spacing and alignment override anything above where they differ. These
 measurements were taken from the PDF with PyMuPDF (points from the page edge; 72 pt = 1 in).
 
