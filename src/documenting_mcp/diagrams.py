@@ -324,12 +324,28 @@ def render_flowchart(text: str, out_path: Path, fontsize: float = 11) -> Path:
         )
         ax.add_patch(arrow)
         if e.label:
-            mx, my = (a.x + b.x) / 2, (a.y + b.y) / 2
+            dx, dy = b.x - a.x, b.y - a.y
             if rad:
-                dx, dy = b.x - a.x, b.y - a.y
-                mx, my = mx + rad * dy * 0.5, my - rad * dx * 0.5
-            ax.text(mx, my, e.label, ha="center", va="center", fontsize=fontsize - 1, family="serif", zorder=6,
-                    bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none"})
+                mx, my = (a.x + b.x) / 2 + rad * dy * 0.5, (a.y + b.y) / 2 - rad * dx * 0.5
+                ax.text(mx, my, e.label, ha="center", va="center", fontsize=fontsize - 1, family="serif", zorder=6,
+                        bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none"})
+            elif abs(dx) >= abs(dy):
+                # Mostly horizontal: centre of the visible stretch between the two boxes, label just above it,
+                # so the text never sits on the arrowhead of a short connector.
+                sx = 1 if dx >= 0 else -1
+                x0, x1 = a.x + sx * a.w / 2, b.x - sx * b.w / 2
+                mx = (x0 + x1) / 2
+                my = a.y + (b.y - a.y) * ((mx - a.x) / dx if dx else 0.5)
+                ax.text(mx, my + 0.06, e.label, ha="center", va="bottom", fontsize=fontsize - 1, family="serif", zorder=6,
+                        bbox={"boxstyle": "round,pad=0.08", "fc": "white", "ec": "none"})
+            else:
+                # Mostly vertical: label to the right of the visible stretch.
+                sy = 1 if dy >= 0 else -1
+                y0, y1 = a.y + sy * a.h / 2, b.y - sy * b.h / 2
+                my = (y0 + y1) / 2
+                mx = a.x + (b.x - a.x) * ((my - a.y) / dy if dy else 0.5)
+                ax.text(mx + 0.08, my, e.label, ha="left", va="center", fontsize=fontsize - 1, family="serif", zorder=6,
+                        bbox={"boxstyle": "round,pad=0.08", "fc": "white", "ec": "none"})
     ax.set_xlim(min(xs) - pad, max(xs) + pad)
     ax.set_ylim(min(ys) - pad, max(ys) + pad)
     fig.set_size_inches(max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad)
