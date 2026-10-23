@@ -103,6 +103,125 @@ can use it.
 
 The Word file is saved in `Documents\DocumentingMCP`.
 
+## How to use it
+
+You talk to Claude or ChatGPT normally; the AI decides which tools to call. Below are the
+everyday tasks and the kind of thing to type. Paths are examples, so use your own.
+
+### 1. First time only: save your details
+
+> Set my profile: name **W M L M Herath**, reg no **D/ENG/EE/25/0008**, intake **42**.
+
+These go on every cover page, so you won't need to type them again. You can also change the save folder:
+
+> Save my documents to D:\Uni\Semester 3.
+
+### 2. Write an assignment from the brief
+
+> Here is my assignment brief: C:\Users\User\Downloads\ET2013_Assignment.pdf.
+> The lecture notes are C:\Users\User\Downloads\ET2013_L5.pdf. Answer all the questions using the
+> notes, and submit it on 17/05/2026.
+
+The AI reads the brief, takes each question as a numbered heading, writes the answers in the
+master assignment format and saves the Word file. Questions that say *"using a suitable diagram"*
+get a drawn block diagram automatically.
+
+### 3. Write a lab report with your own screenshots and photos
+
+> Write my ET2263 Lab 4 report on interfacing a 16x2 LCD with STM32 over I2C.
+> My screenshots and the photo of the LCD are in C:\Users\User\Desktop\Lab4.
+> Here is my main.c: C:\Users\User\STM32CubeIDE\workspace\Lab4\Core\Src\main.c
+
+The AI lists the images in the folder and places each one under the right section. It puts your code
+in the Code section and writes Aim → Apparatus → Theory → Procedure → Observation → Result →
+Discussion → Conclusion. If a photo is missing, it leaves a marked placeholder for you to fill in.
+
+### 4. Add graphs from your readings or simulation data
+
+> Use my readings in C:\Users\User\Desktop\Lab4\readings.xlsx. Put them in a table and plot
+> output voltage against input code.
+
+> For the CA report, plot torque against slip for R = 0.01 pu and 0.05 pu using the formula
+> from the notes, and label the maximum torque.
+
+Data can come from Excel/CSV columns, a list of numbers or a formula. You get labelled axes,
+units and a legend. Tables are plain Word tables.
+
+### 5. Ask for diagrams and circuits
+
+> Draw a flowchart of the I2C scan routine.
+
+> Draw the inverting summing amplifier with Rf in the feedback path.
+
+> Show the control loop as a block diagram with feedback from the sensor.
+
+Block diagrams, flowcharts, circuits and logic gates are drawn as clean figures, numbered and
+captioned like the rest of the document.
+
+### 6. Add references
+
+> Cite the Sedra & Smith textbook (ISBN 9780199339136) and this paper: 10.1109/5.771073.
+> Also add the STM32F411 datasheet from st.com.
+
+References are saved to your library once and reused in later documents. The text gets [1], [2], …
+and an IEEE reference list is built at the end. Unless you ask otherwise, only sources you actually
+cite are listed.
+
+### 7. Change part of a document without redoing it
+
+> In my DAC assignment, rewrite question 2 in simpler words.
+
+> Add a short discussion about settling time after question 3.
+
+> Change every "5V" to "5 V", remove the "Block Descriptions" part, and set the
+> submission date to 20/05/2026.
+
+Only the part you mention changes. Formatting, numbering and references update automatically.
+
+### 8. Check it before you submit
+
+> Check my assignment. The limit is 6 pages and 1500 words. Also compare it with the
+> lecture notes for similarity.
+
+You get a list of problems to fix:
+- spelling mistakes and missing spaces in units ("5V");
+- placeholders still left in, empty sections, unanswered questions and missing images;
+- broken references and pages over the limit;
+- **sentences that sound AI-written**, and paragraphs copied too closely from the notes.
+
+Ask the AI to fix them, then check again.
+
+### 9. Get the PDF
+
+> Export it as a PDF.
+
+With Microsoft Word installed, Word refreshes the figure numbers, cross-references and contents
+first, so the PDF matches what you see in Word.
+
+### Optional extras
+
+These are all off by default, because the reference assignment doesn't use them. Ask for them when a
+module wants them:
+
+| Ask for | What you get |
+|---|---|
+| "add a table of contents" | Contents page after the cover (also lists of figures and tables) |
+| "add page numbers" | Page numbers at the bottom (the cover stays unnumbered) |
+| "put the module code in the header" | Running header on every page except the cover |
+| "number all the equations" | (1), (2), … on the right of each equation |
+| "caption every figure" | "Figure n: …" under every picture |
+| "use coloured tables" | Navy header with shaded rows instead of plain Word tables |
+
+### Tips for a good result
+
+- **Give the brief and your notes.** Answers built from your own course material read like yours.
+- **Give your real results:** readings, screenshots and what went wrong in the lab. The AI is told to
+  write concretely and in a student's voice, but only you know what actually happened.
+- **Read and edit the output.** Treat it as a strong first draft. Make sure you understand every
+  line and can explain it in a viva.
+- **Keep the .docx and the `.docmcp.json` file next to each other.** The JSON file is what lets
+  the AI edit sections later.
+
 ## How a document is written
 
 The AI writes the body in Markdown. You never need to, but you can. It looks like this:
