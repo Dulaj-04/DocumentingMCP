@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+**Images**
+- `import_images` collects screenshots and photos in `Downloads/KDocs Images` (optionally one
+  sub-folder per assignment), copying them and giving each a descriptive name. Originals are untouched.
+- `list_images` shows size and shape so the AI can choose a layout. `rename_image` renames a file in
+  the library and can update reports that use it.
+- Reports find library images by file name, so one image can be reused anywhere.
+- Two or three images on one line are placed side by side at the same height with (a)/(b) labels and an
+  optional shared figure caption.
+
 ## 1.2.0
 
 **Renamed to KDocs MCP.** The package is `kdocs_mcp`, the command is `kdocs-mcp`, and the repository is

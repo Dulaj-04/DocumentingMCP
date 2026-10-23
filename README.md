@@ -38,6 +38,7 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 | ✏️ **Edit, don't regenerate** | Change one question or section; everything else stays exactly as it was. |
 | 🪟 **Live editing in Word** | With the document open in Word (Windows), changes appear in the open window and your own hand edits are kept. A closed file you edited by hand is never overwritten without asking. |
 | 🔍 **Pre-submission check** | Spelling (British is fine), "5V"-style units, placeholders, empty sections, missing questions, page/word limits, **AI-sounding wording**, and similarity with your lecture notes. |
+| 🖼️ **Image library and layout** | Your screenshots and photos are collected in one folder, named by what they show, and placed centred or side by side at matching heights with (a)/(b) labels. |
 | 🗂️ **Plain Word tables** | Black grid and a bold header, without the coloured "AI look" (a shaded style is optional). |
 
 ## How it works
@@ -280,6 +281,26 @@ The images go under the right sections, the code goes in the Code section, and m
 left as marked placeholders. The sections run Aim → Apparatus → Theory → Procedure → Observation →
 Result → Discussion → Conclusion.
 
+**Your images are collected and named for you.** The AI copies your screenshots and photos into
+`Downloads\KDocs Images` (a sub-folder per assignment), looks at each one and gives it a descriptive
+name, such as `rc-filter-circuit.png` instead of `IMG_2041.jpg`. Your originals are never moved or
+deleted. After that it uses the images by name wherever they are needed, as many times as needed.
+
+> Put all the photos from C:\Users\User\Desktop\Lab4 into the report, name them properly and put each
+> one under the right section. Show the two scope screenshots side by side.
+
+> Rename the second photo to "dac-output-5v" and update the report.
+
+<p align="center"><img src="docs/images/image-rows.png" width="620" alt="Three images side by side with (a), (b), (c) labels and one shared figure caption"></p>
+
+<sub>Three images written on one line. They get the same height, (a)/(b)/(c) labels and one shared caption.</sub>
+
+- **Alignment:** a single image is centred and sized to fit. Two or three images on one line sit side
+  by side at the same height, with (a), (b) labels under each and one shared "Figure n" caption.
+- **Renaming** works on files inside the image folder only, and can update a report that already uses
+  the image, so nothing breaks.
+- Phone photos are turned the right way up automatically.
+
 ### 4. Graphs and tables from your data
 
 > Use my readings in C:\Users\User\Desktop\Lab4\readings.xlsx. Put them in a table and plot output
@@ -402,6 +423,7 @@ The AI calls these for you. The list shows what the server can do.
 | | `create_document` | Build the Word file (only once a plan is approved) |
 | Your material | `extract_assignment_brief` | Pull the module, title, date, instructions, questions and marks from a brief |
 | | `read_source`, `list_files` | Read PDF/DOCX/XLSX/text/code; list your photos and screenshots |
+| | `import_images`, `list_images`, `rename_image` | Collect images in `Downloads\KDocs Images`, name them by content, rename later (reports are updated) |
 | | `spreadsheet_to_table` | Excel/CSV readings → table |
 | Drawings | `make_plot`, `make_diagram`, `make_circuit` | Preview a graph, block diagram or circuit |
 | Figures | `review_figures`, `approve_figures` | Critical review of each figure, and your approval |

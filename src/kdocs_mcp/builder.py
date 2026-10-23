@@ -198,6 +198,21 @@ def _set_col_widths(table, widths_in) -> None:
         tblpr.append(layout)
 
 
+def _no_borders(table) -> None:
+    """An invisible layout grid (explicit, so no table style can draw lines)."""
+    borders = OxmlElement("w:tblBorders")
+    for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = OxmlElement(f"w:{side}")
+        el.set(qn("w:val"), "nil")
+        borders.append(el)
+    table._tbl.tblPr.append(borders)
+
+
+def _is_image_row(meaningful: list) -> bool:
+    """A paragraph made only of two or more images is a row of figures placed side by side."""
+    return len(meaningful) >= 2 and all(i["t"] == "Image" for i in meaningful)
+
+
 def _plain_text(node) -> str:
     """Concatenated text of a pandoc AST fragment (for sizing table columns)."""
     if isinstance(node, list):
@@ -607,6 +622,9 @@ class ReportBuilder:
                 if len(meaningful) == 1 and meaningful[0]["t"] == "Image":
                     img = meaningful[0]
                     figure(img, bool(img["c"][1]), img["c"][0][0])
+                elif _is_image_row(meaningful):
+                    first = meaningful[0]["c"][0]
+                    figure(node, bool(dict(first[2]).get("caption")), first[0])
             elif t == "CodeBlock":
                 attr = node["c"][0]
                 if any(c.lower() in VISUAL_CLASSES for c in attr[1]):
@@ -792,7 +810,7 @@ class ReportBuilder:
     def _block(self, container, b, list_ctx) -> None:
         t, c = b["t"], b.get("c")
         if t in ("Para", "Plain"):
-            self._para(container, c, list_ctx)
+            self._para(container, c, list_ctx, number=b.get("_fig_no"))
         elif t == "Header":
             self._header(container, c)
         elif t == "BulletList":
@@ -831,12 +849,16 @@ class ReportBuilder:
         elif t == "HorizontalRule":
             container.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
-    def _para(self, container, inlines, list_ctx) -> None:
+    def _para(self, container, inlines, list_ctx, number=None) -> None:
         meaningful = [i for i in inlines if i["t"] not in ("Space", "SoftBreak", "LineBreak")]
         # A paragraph that is only an image is a figure.
         if len(meaningful) == 1 and meaningful[0]["t"] == "Image" and list_ctx is None:
             img = meaningful[0]
             self._figure_image(container, img["c"], caption=img["c"][1], number=img.get("_fig_no"))
+            return
+        # Two or more images and nothing else: a row of figures side by side.
+        if _is_image_row(meaningful) and list_ctx is None:
+            self._image_row(container, meaningful, number=number)
             return
         # Display math is always set on its own centred line, even when written mid-paragraph.
         if any(i["t"] == "Math" and i["c"][0]["t"] == "DisplayMath" for i in meaningful):
@@ -1124,6 +1146,11 @@ class ReportBuilder:
         for cand in candidates:
             if cand.is_file():
                 return self._upright(cand)
+        from . import images as image_library
+
+        found = image_library.find(path.name if path.is_absolute() else str(path))
+        if found:
+            return self._upright(found)
         self.warnings.append(f"Image not found: {src}")
         return None
 
@@ -1194,6 +1221,72 @@ class ReportBuilder:
         p.add_run().add_picture(str(path), width=self._img_width(path, attr[2]))
         if number is not None:
             self._caption(container, "Figure", number, attr[0], caption)
+
+    ROW_MAX_COLS = 3
+    ROW_MAX_H = 3.4  # inches: keeps a row from filling a whole page
+
+    def _image_row(self, container, images, number) -> None:
+        """Images side by side in an invisible grid: one common height, centred, with (a), (b)... sub-captions.
+
+        Each image's alt text is its sub-caption. The first image may carry caption="..." and an id for the
+        figure as a whole. Widths given with {width=...} are honoured; otherwise every image in a line gets the
+        same height so the row looks tidy."""
+        n = len(images)
+        cols = min(n, self.ROW_MAX_COLS) if n <= 4 and n != 4 else (2 if n == 4 else self.ROW_MAX_COLS)
+        grid = [images[i : i + cols] for i in range(0, n, cols)]
+        gap = 0.15
+        col_w = (CONTENT_W - gap * (cols - 1)) / cols
+        usable = col_w - 0.22  # Word keeps 0.08" of padding inside each cell; a wider picture gets clipped
+        table = container.add_table(rows=len(grid), cols=cols)
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _set_col_widths(table, [col_w] * cols)
+        first = images[0]["c"]
+        overall = dict(first[0][2]).get("caption", "")
+        for r, line in enumerate(grid):
+            resolved = [(self._resolve(img["c"][2][0]), img) for img in line]
+            heights = []
+            for path, img in resolved:
+                if path:
+                    with PILImage.open(path) as im:
+                        w_px, h_px = im.size
+                    heights.append(min(usable * h_px / w_px, self.ROW_MAX_H))
+            common = min(heights) if heights else 0
+            for c, (path, img) in enumerate(resolved):
+                cell = table.cell(r, c)
+                cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.BOTTOM
+                p = cell.paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.paragraph_format.space_before = Pt(4)
+                p.paragraph_format.space_after = Pt(2)
+                p.paragraph_format.keep_with_next = True
+                if not path:
+                    run = p.add_run(f"[Missing image: {img['c'][2][0]}]")
+                    run.italic = True
+                    run.font.color.rgb = RGBColor(0xC0, 0, 0)
+                    continue
+                width_attr = dict(img["c"][0][2]).get("width")
+                if width_attr:
+                    p.add_run().add_picture(str(path), width=Inches(min(self._img_width(path, img["c"][0][2]).inches, usable)))
+                else:
+                    with PILImage.open(path) as im:
+                        aspect = im.size[0] / im.size[1]
+                    p.add_run().add_picture(str(path), width=Inches(min(common * aspect, usable)))
+                sub = _plain_text(img["c"][1]).strip()
+                if sub:
+                    sp = cell.add_paragraph()
+                    sp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    sp.paragraph_format.space_before = Pt(0)
+                    sp.paragraph_format.space_after = Pt(4)
+                    sp.paragraph_format.keep_with_next = number is not None
+                    self._inlines(sp, img["c"][1], {})
+                    for run in sp.runs:
+                        run.font.size = Pt(self.s.body_size - 1)
+        _no_borders(table)
+        if number is not None:
+            self._caption(container, "Figure", number, first[0][0], overall)
+        else:
+            spacer = container.add_paragraph()
+            spacer.paragraph_format.space_after = Pt(4)
 
     def _caption(self, container, kind: str, number: int, label: str, inlines) -> None:
         """'Figure 3: text' with a live SEQ number and a bookmark that @fig:x cross-references point to."""

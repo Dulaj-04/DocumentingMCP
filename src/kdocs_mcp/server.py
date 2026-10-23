@@ -15,7 +15,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field, create_model
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import __version__, export, ingest, live_word, planning, project, quality, references
+from . import __version__, export, images as image_library, ingest, live_word, planning, project, quality, references
 from .builder import BuildOptions, CoverInfo, build_report
 from .guides import guide_for
 from .profile import Profile, load_profile, save_profile
@@ -44,7 +44,7 @@ mcp = MCPServer(
         "what was done, show the result, and ask whether to continue or change something. Never run the "
         "whole job silently.\n"
         "Tools along the way: extract_assignment_brief/read_source for briefs and notes, get_writing_guide, "
-        "list_files, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
+        "list_files, import_images/rename_image/list_images, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
         "create_document(plan_id=...), review_figures + approve_figures (student approves every figure), "
         "update_section/replace_text for changes (applied live if the document is open in Word; open_in_word "
         "offers that; never pass overwrite_manual_edits=true without the student's consent), "
@@ -135,6 +135,57 @@ def list_files(folder: str, images_only: bool = True) -> dict:
         if len(files) >= 500:
             break
     return {"folder": str(root), "files": files}
+
+
+@mcp.tool()
+def import_images(sources: list[str], names: list[str] | None = None, project: str = "") -> dict:
+    """Collect the student's screenshots and photos in one folder (Downloads/KDocs Images) with tidy names.
+
+    sources: image files and/or folders (every image inside a folder is taken). Originals are copied, never
+        moved or deleted.
+    names: optional new names, one per image in order (descriptive, e.g. "adc-block-diagram"). The extension
+        is kept and a number is added if the name is taken. Look at each image first and name it by what it shows.
+    project: optional sub-folder, e.g. "ET2013-lab3", to keep one assignment's images together.
+    Afterwards refer to an image in the report by its file name only: `![caption](adc-block-diagram.png)`.
+    """
+    return image_library.import_images(sources, names, project)
+
+
+@mcp.tool()
+def list_images(project: str = "") -> dict:
+    """List the images in the image library with their size and shape (landscape / portrait / square) so
+    you can choose where each belongs and whether two or three should sit side by side."""
+    return image_library.list_library(project)
+
+
+@mcp.tool()
+def rename_image(path: str, new_name: str, update_documents: list[str] | None = None) -> dict:
+    """Rename an image inside the image library. The extension is kept.
+
+    path: file name or library-relative path. Only files inside the library can be renamed.
+    update_documents: .docx files that already use the image; their references are updated and they are
+        rebuilt, so nothing breaks.
+    """
+    res = image_library.rename(path, new_name)
+    if "error" in res or not res.get("renamed"):
+        return res
+    old_name, new_file = Path(res["old"]).name, Path(res["path"]).name
+    updated = []
+    for d in update_documents or []:
+        try:
+            src = load_source(d)
+        except Exception as exc:
+            updated.append({"docx": d, "error": str(exc)})
+            continue
+        pattern = re.compile(r"(?<![\w.-])((?:[^\s()]*[/\\])?)" + re.escape(old_name))
+        body, n = pattern.subn(lambda m: m.group(1) + new_file, src.body_markdown)
+        if n:
+            src.body_markdown = body
+            updated.append({"docx": d, "references": n, **_rebuild(d, src, False, f"Image renamed to {new_file}.")})
+        else:
+            updated.append({"docx": d, "references": 0})
+    res["documents"] = updated
+    return res
 
 
 PageNumbers = Literal["none", "bottom-center", "bottom-right"]

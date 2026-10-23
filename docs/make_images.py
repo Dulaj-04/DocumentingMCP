@@ -317,6 +317,30 @@ def sample_pages() -> None:
     save(row(strip, gap=40), "generated-figures.png")
 
 
+def image_rows() -> None:
+    """Three photos-like images imported into the library, renamed, and placed side by side."""
+    os.environ["KDOCS_MCP_IMAGES"] = str(WORK / "Downloads" / "KDocs Images")
+    raw = WORK / "phone"
+    raw.mkdir(exist_ok=True)
+    make_plot({"x_label": "Time (ms)", "y_label": "Voltage (V)", "width": 4.2,
+               "series": [{"expr": "5*sin(2*pi*t/10)", "var": "t", "range": [0, 20]}]}, raw / "IMG_2041.png")
+    make_plot({"x_label": "Time (ms)", "y_label": "Voltage (V)", "width": 4.2,
+               "series": [{"expr": "2.5*sin(2*pi*t/10)", "var": "t", "range": [0, 20]}]}, raw / "IMG_2042.png")
+    make_plot({"x_label": "Time (ms)", "y_label": "Voltage (V)", "width": 4.2,
+               "series": [{"expr": "1.2*sin(2*pi*t/10)", "var": "t", "range": [0, 20]}]}, raw / "IMG_2043.png")
+    server.import_images([str(raw)], names=["scope-5v-input", "scope-2v5-stage-1", "scope-1v2-output"], project="lab-4")
+    md = """# Observations
+
+The signal was halved at each stage (@fig:stages).
+
+![(a) Input](scope-5v-input.png){#fig:stages caption="Waveform at each stage of the attenuator"} ![(b) Stage 1](scope-2v5-stage-1.png) ![(c) Output](scope-1v2-output.png)
+"""
+    res = server.create_document(template="assignment", title="Image layout", filename="imgrow", skip_planning=True, body_markdown=md)
+    page = Image.open(pages(res["docx"], "imgrow")[1])
+    w, h = page.size
+    save(card(page.crop((0, int(h * 0.05), w, int(h * 0.42))), 760), "image-rows.png")
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     sample_pages()
@@ -328,4 +352,5 @@ if __name__ == "__main__":
     diagrams()
     equations()
     tables_and_borders()
+    image_rows()
     shutil.rmtree(WORK, ignore_errors=True)

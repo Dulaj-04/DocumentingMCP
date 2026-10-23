@@ -19,6 +19,7 @@ intake or date in the body.
 | `$$V_{out} = -V_{ref}\\sum_{i=1}^{n} b_{n-i}\\,2^{-i}$$` on its own line | Centred display equation |
 | Pipe tables (`| A | B |` + `|---|---|`) | Plain Word table. Optional `Table: caption` line under it. Always use pipe tables: grid tables (`+---+`) break if one `|` is out of line |
 | `![caption](path/to/image.png){width=80%}` on its own line | Centred figure. width may be %, in, cm |
+| `![(a) Input](a.png){#fig:io caption="Input and output"} ![(b) Output](b.png)` on one line | Images side by side (2 or 3 per row) at the same height, with (a)/(b) labels under each. Put `caption=` and `#fig:id` on the first image for one shared "Figure n" caption |
 | Fenced code block (```` ```c ````) | Monospace code listing in a light box |
 | `<!-- pagebreak -->` | Page break |
 
@@ -137,6 +138,20 @@ later makes it pending again.
   open in Word, those edit tools change it live and keep their hand edits.
 - If a tool reports `manual_edits_detected`, the student changed the file in Word. Ask them whether to
   open it in Word (edits kept) or discard their edits; only then repeat with `overwrite_manual_edits=true`.
+
+## Images the student gives you
+
+1. Call `import_images` with the files or folder the student mentions. They are copied into
+   Downloads/KDocs Images (a sub-folder per assignment via `project`); the originals stay untouched.
+2. Look at each image (and `list_images` for size and shape) and give it a descriptive name, either in
+   `names` at import time or later with `rename_image` (pass `update_documents` if a report already uses
+   it). Names describe the content: `rc-filter-circuit`, `lab3-oscilloscope-1khz`, not `IMG_2041`.
+3. Use the images by file name across the report: `![caption](rc-filter-circuit.png)`. The same image can
+   be used in several places.
+4. Placement: a single image is centred and sized to fit. Put two or three related images (before/after,
+   input/output, different frequencies) on one line to place them side by side. Portrait phone photos
+   suit a row of two. Give every figure a caption and refer to it in the text (`@fig:id`).
+5. Ask the student if you cannot tell what an image shows. Never guess a label for a lab photo.
 
 Image paths may be absolute, or relative to `assets_dir`. Use `list_files` to see what images the
 student has. Never invent image paths. If a required screenshot or photo is missing, write a short
