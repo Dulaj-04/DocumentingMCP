@@ -22,6 +22,27 @@ intake or date in the body.
 | Fenced code block (```` ```c ````) | Monospace code listing in a light box |
 | `<!-- pagebreak -->` | Page break |
 
+## Equations (converted to native, editable Word equations)
+
+Write standard LaTeX math. Every equation becomes a real Word equation (Insert → Equation), not an
+image, so the student can still edit it in Word.
+
+- Display equations go on their own line: `$$ ... $$`. Inline ones use `$ ... $` inside a sentence.
+- Introduce each display equation with a lead-in line and follow it with "where …" defining every symbol.
+- Scientific typesetting (ISO 80000-2) is applied automatically:
+  - Descriptive subscripts become upright: `V_{out}`, `V_{ref}`, `I_{CE}`, `V_{rms}` → V_out with "out" upright.
+  - Index subscripts stay italic: `b_{n-i}`, `x_{ij}`, `R_{k}`.
+  - Numbers with units get an upright unit and a thin space: `5 V`, `10 kHz`, `4.7\mu F`, `2.2 k\Omega`.
+  - Variables stay italic.
+- Use `\text{...}` for words inside equations (`\text{Digital Code}`) and `\times` or `\cdot` for multiplication.
+- Supported: `\frac`, `\dfrac`, `\sqrt[n]{}`, `\sum`, `\int`, `\lim`, `\left( \right)`, matrices
+  (`bmatrix`, `pmatrix`), `cases`, `\overline` (logic NOT), `\hat`, `\vec`, `\dot`, `\angle`,
+  `^{\circ}`, Greek letters, `\sin`, `\cos`, `\log`, `\ln`, `\max`.
+- Multi-step derivations: use `\begin{aligned} V_{out} &= ... \\ &= ... \end{aligned}` so the `=` signs line up.
+- Equation numbers: add `\tag{1}` to a display equation, or pass `number_equations=true` to number all
+  of them (and use `\notag` to skip one). The number appears flush right as "(1)".
+- siunitx is accepted: `\SI{5}{\kilo\ohm}` and `\si{\milli\ampere}`.
+
 Image paths may be absolute, or relative to `assets_dir`. Use `list_files` to see what images the
 student has. Never invent image paths. If a required screenshot or photo is missing, write a short
 italic placeholder such as `*[Insert photo of the LCD output here]*`.

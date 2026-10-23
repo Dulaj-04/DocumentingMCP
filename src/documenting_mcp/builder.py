@@ -24,6 +24,8 @@ from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
 from PIL import ImageOps
 
+from .latex_prep import PreparedMath
+from .latex_prep import prepare as prepare_math
 from .omml import M, latex_to_omml
 from .profile import Profile
 from .styles import HeadingStyle, TemplateStyle
@@ -105,6 +107,55 @@ def _para_box(p) -> None:
         bdr.append(el)
     ppr.append(bdr)
     _shade(ppr, "F5F5F5")
+
+
+# Child order required by the WordprocessingML schema (Word reports "unreadable content" otherwise).
+_ORDER = {
+    "pPr": "pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd "
+    "tabs suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi "
+    "adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection "
+    "textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange",
+    "tblPr": "tblStyle tblpPr tblOverlap bidiVisual tblStyleRowBandSize tblStyleColBandSize tblW jc tblCellSpacing "
+    "tblInd tblBorders shd tblLayout tblCellMar tblLook tblCaption tblDescription",
+    "tcPr": "cnfStyle tcW gridSpan hMerge vMerge tcBorders shd noWrap tcMar textDirection tcFitText vAlign hideMark",
+}
+
+
+def _normalise_order(root) -> None:
+    for local, seq in _ORDER.items():
+        rank = {name: i for i, name in enumerate(seq.split())}
+        for el in root.iter(qn(f"w:{local}")):
+            children = list(el)
+            children.sort(key=lambda c: rank.get(c.tag.split("}")[-1], len(rank)))
+            for c in children:
+                el.append(c)
+
+
+def _set_col_widths(table, widths_in) -> None:
+    """Set both the table grid and every cell; Word and LibreOffice read different ones."""
+    grid = table._tbl.tblGrid
+    for col, w in zip(grid.findall(qn("w:gridCol")), widths_in):
+        col.set(qn("w:w"), str(int(w * 1440)))
+    for row in table.rows:
+        for cell, w in zip(row._tr.tc_lst, widths_in):
+            tcpr = cell.get_or_add_tcPr()
+            tcw = tcpr.find(qn("w:tcW"))
+            if tcw is None:
+                tcw = OxmlElement("w:tcW")
+                tcpr.insert(0, tcw)
+            tcw.set(qn("w:w"), str(int(w * 1440)))
+            tcw.set(qn("w:type"), "dxa")
+    tblpr = table._tbl.tblPr
+    tblw = tblpr.find(qn("w:tblW"))
+    if tblw is None:
+        tblw = OxmlElement("w:tblW")
+        tblpr.append(tblw)
+    tblw.set(qn("w:w"), str(int(sum(widths_in) * 1440)))
+    tblw.set(qn("w:type"), "dxa")
+    if tblpr.find(qn("w:tblLayout")) is None:
+        layout = OxmlElement("w:tblLayout")
+        layout.set(qn("w:type"), "fixed")
+        tblpr.append(layout)
 
 
 def _plain_text(node) -> str:
@@ -241,11 +292,14 @@ class ReportBuilder:
         self._after_backmatter = False
         self._h3_bullets: int | None = None
         self._math: dict[int, object] = {}
+        self._math_meta: dict[int, PreparedMath] = {}
+        self._eq_n = 0
         self._fig_n = 0
         self._tab_n = 0
         self._tmp = tempfile.TemporaryDirectory()
         self._setup_page()
         self._setup_styles()
+        self._setup_math()
 
     # ---- setup
 
@@ -275,6 +329,35 @@ class ReportBuilder:
             st = styles[name]
             _set_fonts(st.element, self.s.body_font)
             st.font.color.rgb = RGBColor(0, 0, 0)
+
+    def _setup_math(self) -> None:
+        """Word's document-level equation options: Cambria Math, display-style n-ary limits above/below."""
+        settings = self.doc.settings.element
+        old = settings.find(qn("m:mathPr"))
+        math_pr = OxmlElement("m:mathPr")
+        for tag, val in (
+            ("m:mathFont", "Cambria Math"),
+            ("m:brkBin", "before"),
+            ("m:brkBinSub", "--"),
+            ("m:smallFrac", "0"),
+            ("m:dispDef", None),
+            ("m:lMargin", "0"),
+            ("m:rMargin", "0"),
+            ("m:defJc", "centerGroup"),
+            ("m:wrapIndent", "1440"),
+            ("m:intLim", "subSup"),
+            ("m:naryLim", "undOvr"),
+        ):
+            el = OxmlElement(tag)
+            if val is not None:
+                el.set(qn("m:val"), val)
+            math_pr.append(el)
+        if old is not None:
+            old.addprevious(math_pr)
+            old.getparent().remove(old)
+        else:
+            rsids = settings.find(qn("w:rsids"))
+            (rsids.addnext if rsids is not None else settings.append)(math_pr)
 
     def _style_heading(self, st, hs: HeadingStyle) -> None:
         _set_fonts(st.element, hs.font)
@@ -371,7 +454,9 @@ class ReportBuilder:
         def walk(node):
             if isinstance(node, dict):
                 if node.get("t") == "Math":
-                    found.append(node["c"][1])
+                    prepared = prepare_math(node["c"][1], scientific=self.s.scientific_math)
+                    self._math_meta[len(found)] = prepared
+                    found.append(prepared.latex)
                     node["_mi"] = len(found) - 1
                 else:
                     walk(node.get("c"))
@@ -461,14 +546,55 @@ class ReportBuilder:
             img = meaningful[0]["c"]
             self._figure_image(container, img, caption=img[1])
             return
-        # A paragraph that is only display math is a centred equation.
-        if len(meaningful) == 1 and meaningful[0]["t"] == "Math" and meaningful[0]["c"][0]["t"] == "DisplayMath":
-            p = self._new_para(container, list_ctx, justify=False)
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            self._math_into(p, meaningful[0], display=True)
+        # Display math is always set on its own centred line, even when written mid-paragraph.
+        if any(i["t"] == "Math" and i["c"][0]["t"] == "DisplayMath" for i in meaningful):
+            segment: list = []
+            for node in inlines + [None]:
+                if node is None or (node["t"] == "Math" and node["c"][0]["t"] == "DisplayMath"):
+                    if any(x["t"] not in ("Space", "SoftBreak", "LineBreak") for x in segment):
+                        self._inlines(self._new_para(container, list_ctx), segment, {})
+                    segment = []
+                    if node is not None:
+                        self._display_equation(container, node, list_ctx)
+                else:
+                    segment.append(node)
             return
         p = self._new_para(container, list_ctx)
         self._inlines(p, inlines, {})
+
+    def _display_equation(self, container, node, list_ctx) -> None:
+        meta = self._math_meta.get(node.get("_mi", -1))
+        number = None
+        if meta and not meta.notag:
+            if meta.tag:
+                number = meta.tag
+            elif self.s.number_equations:
+                self._eq_n += 1
+                number = str(self._eq_n)
+        if number is None or container is not self.doc:
+            p = self._new_para(container, list_ctx, justify=False)
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER  # centred within the answer column, as in the master
+            p.paragraph_format.space_before = Pt(4)
+            self._math_into(p, node, display=True)
+            return
+        # Numbered equation: borderless 3-column row, equation centred on the page, "(n)" flush right.
+        table = container.add_table(rows=1, cols=3)
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.autofit = False
+        widths = (CONTENT_W * 0.12, CONTENT_W * 0.76, CONTENT_W * 0.12)
+        _set_col_widths(table, widths)
+        for cell in table.rows[0].cells:
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            cell.paragraphs[0].paragraph_format.space_after = Pt(0)
+        mid = table.cell(0, 1).paragraphs[0]
+        mid.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        self._math_into(mid, node, display=True)
+        right = table.cell(0, 2).paragraphs[0]
+        right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        right.add_run(f"({number})")
+        spacer = container.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(0)
+        spacer.paragraph_format.line_spacing = 0.5
 
     def _header(self, container, c) -> None:
         level, _attr, inlines = c
@@ -776,9 +902,7 @@ class ReportBuilder:
                 self._cell(target, blocks, is_head, align["t"], first_col=(col == 0), fill=band)
                 col += colspan
 
-        for row in table.rows:
-            for i, cell in enumerate(row.cells[:ncols]):
-                cell.width = Inches(widths[i])
+        _set_col_widths(table, widths)
 
         spacer = container.add_paragraph()
         spacer.paragraph_format.space_after = Pt(4)
@@ -865,6 +989,9 @@ class ReportBuilder:
 
     def save(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
+        _normalise_order(self.doc.element)
+        for st in self.doc.styles.element:
+            _normalise_order(st)
         try:
             self.doc.save(path)
         except PermissionError:

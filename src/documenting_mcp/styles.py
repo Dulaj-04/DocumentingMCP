@@ -45,6 +45,8 @@ class TemplateStyle:
     code_font: str = "Consolas"
     code_size: float = 9.5
     figure_captions: bool = False
+    scientific_math: bool = True  # upright descriptive subscripts and units (ISO 80000-2)
+    number_equations: bool = False  # auto-number every display equation (1), (2), ...
     table_header_bold: bool = False
     sections: tuple[str, ...] = field(default_factory=tuple)
 

@@ -23,6 +23,22 @@ house style:
 
 The style rules are documented in [`docs/style-spec.md`](docs/style-spec.md).
 
+## Equations
+
+Write the maths in LaTeX and it becomes **native Word equations**: the same editable objects you get
+from Insert → Equation, not images. They are typeset in standard scientific style (ISO 80000-2):
+
+| You write | Word shows |
+|---|---|
+| `$V_{out} = V_{ref}\times\frac{D}{2^n}$` | *V*<sub>out</sub> = *V*<sub>ref</sub> × *D*/2<sup>*n*</sup>, with "out" and "ref" upright and the variables italic |
+| `$V = 3.4375 V$`, `$-5V$`, `$10\mu F$`, `$2.2 k\Omega$` | Upright units with a thin space: 3.4375 V, −5 V, 10 µF, 2.2 kΩ |
+| `$b_{n-i}$`, `$x_{ij}$` | Index subscripts stay italic |
+| `$$ ... \tag{1}$$`, or `number_equations=true` | The equation is centered with "(1)" flush right |
+| `\begin{aligned} ... &= ... \\ &= ... \end{aligned}` | A multi-line derivation with the = signs aligned |
+
+Fractions, roots, sums, integrals, limits, matrices, `cases`, overbars, accents, `\angle`, degrees and
+siunitx (`\SI{5}{\kilo\ohm}`) are all supported. See [`examples/equations.md`](examples/equations.md).
+
 ## Tools the AI gets
 
 | Tool | Purpose |

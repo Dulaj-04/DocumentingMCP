@@ -127,6 +127,8 @@ def create_document(
     filename: str = "",
     export_pdf: bool = False,
     figure_captions: bool = False,
+    number_equations: bool = False,
+    scientific_equations: bool = True,
     title_font: str = "",
     name: str = "",
     reg_no: str = "",
@@ -143,11 +145,17 @@ def create_document(
     filename: output file name without extension; defaults to "<reg no>_<title>".
     export_pdf: also save a PDF next to the .docx (needs MS Word on Windows, or LibreOffice).
     figure_captions: number figures and caption them with their alt text ("Figure 1: ...").
+    number_equations: number every display equation (1), (2), ... flush right. Individual equations can
+        instead carry \\tag{n}, and \\notag excludes one.
+    scientific_equations: typeset per ISO 80000-2: descriptive subscripts (V_out, I_CE) and units
+        (5 V, 10 kHz) upright, variables italic. Leave on unless the student asks otherwise.
     title_font: override the cover title font (e.g. "Agency FB").
     name / reg_no / intake: override the stored profile for this document only.
     """
     style = TEMPLATES[template].with_overrides(
         figure_captions=figure_captions or None,
+        number_equations=number_equations or None,
+        scientific_math=scientific_equations,
         title_font=title_font or None,
     )
     profile: Profile = load_profile()
