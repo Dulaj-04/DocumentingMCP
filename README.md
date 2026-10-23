@@ -110,7 +110,7 @@ everyday tasks and the kind of thing to type. Paths are examples, so use your ow
 
 ### 1. First time only: save your details
 
-> Set my profile: name **W M L M Herath**, reg no **D/ENG/EE/25/0008**, intake **42**.
+> Set my profile: name **A B C Student**, reg no **D/ENG/EE/25/0000**, intake **42**.
 
 These go on every cover page, so you won't need to type them again. You can also change the save folder:
 
