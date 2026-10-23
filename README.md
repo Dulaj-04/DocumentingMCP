@@ -361,3 +361,12 @@ docs/style-spec.md   the measured house style
 examples/            sample documents
 tests/               uv run pytest
 ```
+
+## Author
+
+**D Wickramanayake** ([@Dulaj-04](https://github.com/Dulaj-04))
+Undergraduate, Department of Electrical, Electronic and Telecommunication Engineering,
+General Sir John Kotelawala Defence University, Intake 42.
+
+Built for KDU engineering students. Suggestions and bug reports are welcome through
+[GitHub Issues](https://github.com/Dulaj-04/DocumentingMCP/issues).

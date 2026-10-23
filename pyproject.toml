@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "MCP server that generates KDU EE lab reports, CA reports and assignments as styled Word documents"
 readme = "README.md"
 authors = [
-    { name = "Dulaj Wickramanayake" }
+    { name = "D Wickramanayake" }
 ]
 requires-python = ">=3.11"
 dependencies = [
