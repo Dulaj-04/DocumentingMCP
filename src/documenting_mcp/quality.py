@@ -43,6 +43,27 @@ _UNIT_NO_SPACE = re.compile(
     r"(?<![\w.])(\d+(?:\.\d+)?)(V|A|W|Hz|kHz|MHz|GHz|mA|µA|uA|kV|mV|kW|MW|VA|kVA|MVA|ms|µs|us|ns|Ω|kΩ|MΩ|mH|µH|µF|uF|nF|pF|dB|rpm|pu|°C)(?![\w])"
 )
 _PLACEHOLDER = re.compile(r"(\[(?:insert|add|todo|tbd|placeholder)[^\]]*\]|\bTODO\b|\bTBD\b|\bXXX\b|lorem ipsum|\[Missing image[^\]]*\])", re.I)
+# Wording that makes a report read as AI-generated (lecturers notice these).
+AI_PHRASES = {
+    r"\bdelv(?:e|es|ed|ing)\b": "delve",
+    r"\b(?:crucial|pivotal|paramount)\b": "crucial / pivotal / paramount",
+    r"\bseamless(?:ly)?\b": "seamless",
+    r"\brobust(?:ly|ness)?\b": "robust",
+    r"\bleverag(?:e|es|ed|ing)\b": "leverage",
+    r"\butili[sz](?:e|es|ed|ing|ation)\b": "utilise (say 'use')",
+    r"\bharness(?:es|ed|ing)?\b": "harness",
+    r"\bfoster(?:s|ed|ing)?\b": "foster",
+    r"\b(?:landscape|realm|tapestry)\b": "landscape / realm / tapestry",
+    r"\b(?:intricate|multifaceted|holistic)\b": "intricate / multifaceted / holistic",
+    r"\bunderscor(?:e|es|ed|ing)\b": "underscore",
+    r"\bshowcas(?:e|es|ed|ing)\b": "showcase",
+    r"\bplays? an? (?:vital|crucial|key|pivotal|important) role\b": "'plays a vital role'",
+    r"\bin today['’]?s (?:world|era|landscape)\b": "'in today's world'",
+    r"\bit is (?:important|worth|crucial) (?:to note|noting)\b": "'it is worth noting that'",
+    r"\bnot only\b[^.]{0,80}\bbut also\b": "'not only … but also'",
+    r"\bin conclusion,": "'In conclusion,'",
+    r"\b(?:a testament to|stands as)\b": "'a testament to'",
+}
 _FIRST_PERSON = re.compile(r"\b(?:I|[Ww]e|[Oo]ur|[Uu]s|[Mm]y)\b(?![-/0-9])")
 
 
@@ -153,6 +174,27 @@ def check_document(
     fp = [t for _, t in paras if _FIRST_PERSON.search(t)]
     if fp:
         add("warning", fp[0][:60], f"First-person words (I/we/our) in {len(fp)} paragraph(s); formal reports use the passive voice.")
+
+    # AI-style writing
+    lowered = text.lower()
+    for pattern, label in AI_PHRASES.items():
+        hits = re.findall(pattern, lowered)
+        if hits:
+            add("warning", label, f"Sounds AI-generated: {label} used {len(hits)} time(s). Rewrite in plain words.")
+    connectives = len(re.findall(r"\b(?:furthermore|moreover|additionally)\b", lowered))
+    if connectives > 2:
+        add("warning", "connectives", f"'Furthermore/Moreover/Additionally' used {connectives} times; this reads as AI text.")
+    dashes = text.count("—")
+    if total_words and dashes * 1000 / total_words > 4:
+        add("warning", "em dashes", f"{dashes} em dashes (—); use commas, brackets or new sentences instead.")
+    for _, t in paras:
+        if re.search(r"\S\s+[·•|]\s+\S.*\s+[·•|]\s+\S", t) and ":" in t:
+            add("warning", t[:60], "Decorative '·'-separated summary line; write it as a normal sentence or table.")
+    d_ = docx.Document(str(docx_path))
+    body = [p for p in d_.paragraphs if p.text.strip() and not (p.style is not None and p.style.name.startswith("Heading"))]
+    labelled = [p for p in body if p.runs and p.runs[0].bold and re.match(r"^[^.]{2,40}:", p.text)]
+    if len(body) >= 8 and len(labelled) / len(body) > 0.35:
+        add("warning", "bold labels", f"{len(labelled)} of {len(body)} paragraphs start with a bold 'Label:'; vary the writing.")
 
     # Very long sentences
     for _, t in paras:

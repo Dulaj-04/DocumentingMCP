@@ -1,32 +1,32 @@
 # Explain the basic operation of a DAC using a suitable block diagram
 
-The fundamental task of a DAC is to map each possible n-bit binary input code to a unique, proportionate analog output level [@razavi1995]. The generalised functional chain is shown in @fig:block.
+A digital-to-analog converter (DAC) takes an n-bit binary number and gives out a voltage that is proportional to that number [@razavi1995]. The main parts of a DAC are shown in @fig:block.
 
-```{.diagram #fig:block caption="Functional block diagram of an n-bit DAC"}
+```{.diagram #fig:block caption="Block diagram of an n-bit DAC"}
 flowchart LR
-  IN[/Digital Input<br>n-bit word/] --> L[Input Register /<br>Latch]
-  L --> SW[Switching<br>Network]
-  REF[Reference Voltage<br>$V_{ref}$] --> SW
-  SW --> W[Weighting /<br>Summing Circuit]
-  W --> A[Output Amplifier<br>Op-Amp]
-  A --> OUT((Analog<br>Output))
+  IN[/Digital input<br>n-bit word/] --> L[Input register /<br>latch]
+  L --> SW[Switching<br>network]
+  REF[Reference voltage<br>$V_{ref}$] --> SW
+  SW --> W[Resistor<br>network]
+  W --> A[Output<br>op-amp]
+  A --> OUT((Analog<br>output))
 ```
 
 ## Block Descriptions:
 
-- **Input Register / Latch -** Captures and holds the n-bit digital word presented by the controlling processor.
-- **Switching Network -** Each bit of the digital word controls a corresponding analog switch.
-- **Output Amplifier (Op-Amp) -** Converts the summed current to a voltage and buffers the output.
+- **Input register / latch -** holds the digital word steady while it is being converted, so the output does not glitch when the bits change.
+- **Switching network -** each bit controls one switch. A 1 connects that branch to $V_{ref}$ and a 0 connects it to ground.
+- **Resistor network and op-amp -** the resistors weight each bit according to its position, and the op-amp adds the currents and converts the total into a voltage.
 
-The analog output voltage for an n-bit DAC follows the relation in @eq:dac:
+For an n-bit DAC the output voltage is given by @eq:dac:
 
 $$V_{out} = V_{ref} \times \frac{D}{2^{n}} \label{eq:dac}$$
 
-where $D$ is the decimal equivalent of the binary input word. The ideal staircase transfer characteristic of a 3-bit DAC with $V_{ref} = 2.5 V$ is plotted in @fig:transfer.
+where $D$ is the decimal value of the input code. For a 3-bit DAC with $V_{ref} = 2.5 V$, one step (1 LSB) is about 0.31 V. The ideal staircase output is plotted in @fig:transfer.
 
-```{.plot #fig:transfer caption="Transfer characteristic of a 3-bit DAC ($V_{ref}$ = 2.5 V)"}
+```{.plot #fig:transfer caption="Transfer characteristic of a 3-bit DAC with $V_{ref}$ = 2.5 V"}
 type: step
-x_label: Digital input code D
+x_label: Input code D
 y_label: "$V_{out}$ (V)"
 series:
   - label: Ideal output
@@ -46,9 +46,9 @@ series:
 
 ## Working Principle
 
-The binary weighted resistor DAC uses an inverting summing amplifier whose input resistors are scaled in powers of two, as drawn in @fig:bw [@sedra2015, p. 1012].
+This DAC is an inverting summing amplifier where the input resistors are R, 2R, 4R and so on, as drawn in @fig:bw [@sedra2015, p. 1012]. The most significant bit goes through the smallest resistor, so it gives the largest current.
 
-```{.circuit #fig:bw caption="Inverting summing amplifier at the heart of the binary weighted DAC"}
+```{.circuit #fig:bw caption="Inverting summing amplifier used in the binary weighted DAC"}
 - {type: opamp, id: op}
 - {type: line, at: op.in1, dir: left, len: 0.5}
 - {type: dot, id: sum}
@@ -61,20 +61,22 @@ The binary weighted resistor DAC uses an inverting summing amplifier whose input
 - {type: line, at: op.out, dir: right, len: 0.5, label: "$V_{out}$", label_loc: right}
 ```
 
-The output voltage is
+Adding the current from each branch gives
 
 $$V_{out} = -R_{f}\left(\frac{V_{1}}{R} + \frac{V_{2}}{2R} + \cdots + \frac{V_{n}}{2^{n-1}R}\right) \label{eq:bw}$$
 
-## Performance Parameter Analysis
+where $V_{1}$ to $V_{n}$ are either $V_{ref}$ or 0 V depending on the bits.
 
-| Parameter | Binary Weighted Resistor DAC | R-2R Ladder DAC |
+## Comparison with the R-2R Ladder
+
+| Parameter | Binary weighted DAC | R-2R ladder DAC |
 |---|---|---|
 | Resistor values | $n$ different values | Only $R$ and $2R$ |
-| Accuracy | Poor beyond 8 bits | High |
-| Cost | Higher at high resolution | Lower |
+| Accuracy | Poor above about 8 bits | Good |
+| Cost | Higher for many bits | Lower |
 
-Table: Comparison of the two DAC architectures {#tbl:compare}
+Table: Binary weighted and R-2R ladder DACs compared {#tbl:compare}
 
-As @tbl:compare shows, the R-2R ladder is preferred in integrated converters [@kester2005].
+From @tbl:compare, the R-2R ladder is easier to make accurately because only two resistor values have to be matched, which is why most integrated DACs use it [@kester2005].
 
 # References

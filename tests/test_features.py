@@ -109,11 +109,11 @@ def test_citations_captions_and_crossrefs(home):
     assert res["warnings"] == []
     d = docx.Document(res["docx"])
     text = "\n".join(p.text for p in d.paragraphs)
-    assert "level [1]." in text and "Figure 3 [2, p.\xa01012]" in text and "converters [3]." in text
+    assert "that number [1]." in text and "Figure 3 [2, p.\xa01012]" in text and "use it [3]." in text
     refs = [p.text for p in d.paragraphs if p.text.startswith("[")]
     assert refs[0].startswith("[1]\tB. Razavi, Principles of Data Conversion System Design.")
     assert refs[1].startswith("[2]\tA. S. Sedra and K. C. Smith, Microelectronic Circuits, 7th ed.")
-    assert "Figure 1: Functional block diagram" in text and "Table 1: Comparison" in text
+    assert "Figure 1: Block diagram of an n-bit DAC" in text and "Table 1: Binary weighted" in text
     xml = _xml(res["docx"])
     assert "SEQ Figure" in xml and "SEQ Table" in xml and "SEQ Equation" in xml
     assert "REF _Ref_fig_block" in xml and 'w:name="_Ref_fig_block"' in xml
@@ -233,3 +233,14 @@ def test_similarity_flags_copied_paragraph(home):
     notes.write_text("Lecture 5: the fundamental task of a DAC is to map each possible n-bit binary input code to a unique, proportionate analog output level.")
     rep = server.check_similarity(res["docx"], [str(notes)])
     assert rep["paragraphs_flagged"] == 1 and rep["flagged"][0]["source"] == "notes.txt"
+
+
+def test_checker_flags_ai_style(home):
+    body = ("# Q\n\n**Type:** Group · **LOs:** LO1 · **Area:** Power\n\n"
+            "It is worth noting that DACs play a crucial role in today's world. Furthermore, they seamlessly "
+            "leverage robust ladders. Moreover, we delve into the landscape. Additionally, more text here.\n")
+    res = server.create_document(template="assignment", title="T", body_markdown=body)
+    msgs = " | ".join(i["message"] for i in server.check_document(res["docx"])["issues"])
+    for expected in ("crucial", "seamless", "leverage", "robust", "delve", "landscape", "today's world",
+                     "worth noting", "Furthermore/Moreover", "summary line"):
+        assert expected in msgs, expected

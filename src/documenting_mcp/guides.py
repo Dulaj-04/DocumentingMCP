@@ -115,6 +115,35 @@ Writing style for all KDU EE reports:
 - Put a space between a number and its unit (`400 V`, `50 Hz`, `0.05 pu`). Use SI units.
 - Refer to functions and identifiers in single quotes or as `code`.
 - Proof-read. Sample reports contained typos ("DISSCUSSION", "votage"), so do not reproduce them.
+
+## Write like an undergraduate, not like an AI
+
+The report must read as if a second-year engineering student at KDU wrote it. Lecturers notice
+AI-style writing, so follow these rules strictly:
+
+- **Plain, direct sentences.** Use the vocabulary of the lecture notes and the textbook. Mix short and
+  medium-length sentences. A little repetition is fine; a thesaurus-style choice of words is not.
+- **No decorative layout.**
+  - No "·" or "|" separated summary lines like "**Type:** X · **LOs:** Y · **Area:** Z".
+  - No emoji, no arrows (→) in prose, no "key takeaways" boxes.
+  - Do not invent extra sections the brief did not ask for.
+- **Bold sparingly.** Use it only where the master uses it: bold-term bullets and the occasional key
+  value. Do not start every paragraph with a bold label.
+- **Avoid AI vocabulary and phrasing:** delve, crucial, pivotal, vital, seamless(ly), robust, leverage,
+  utilise/utilize (say "use"), harness, foster, landscape, realm, tapestry, intricate, multifaceted,
+  holistic, paramount, underscore, showcase, "plays a vital/crucial role", "in today's world",
+  "it is important/worth noting that", "not only … but also", "in conclusion, …".
+- **Do not overuse "Furthermore" and "Moreover".** Prefer "Also", "However", "Therefore" or no
+  connective at all.
+- **Use few em dashes (—).** Use commas, brackets or a new sentence instead.
+- **Avoid perfect symmetry.** Bullet lists do not all need three items of identical length. Do not end
+  sections with a one-line summary that repeats the paragraph.
+- **Keep it concrete and personal to the work.** Give the actual values, the board or software used,
+  what went wrong in the lab and how it was fixed, and what the graph actually shows. A real student
+  writes "the LCD did not respond at first because the address was shifted twice", not "the system
+  demonstrated robust communication".
+- **British spelling,** as used in Sri Lanka: initialise, analyse, behaviour, colour, centre, modelled.
+- Run `check_document`. It flags AI-style wording, and those flags must be rewritten.
 """
 
 GUIDES = {
