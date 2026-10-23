@@ -87,3 +87,89 @@ def test_images_on_one_line_become_an_aligned_row(home):
     text = "\n".join(p.text for p in d.paragraphs)
     assert "Figure 1: Three results" in text or "Figure 1" in text
     assert "(a) First" in "\n".join(c.text for r in row.rows for c in r.cells)
+
+
+# --------------------------------------------------------------------------- own folder, text under images, placement
+
+
+def test_profile_image_folder_is_used(home):
+    mine = home / "Downloads" / "My Lab Photos"
+    mine.mkdir(parents=True)
+    import os
+
+    os.environ.pop("KDOCS_MCP_IMAGES", None)
+    server.set_profile(image_dir=str(mine))
+    src = _photos(home / "phone")
+    res = server.import_images([str(src[0])], names=["bench"])
+    assert Path(res["imported"][0]["path"]).parent == mine
+
+
+def test_descriptions_become_text_under_the_image(home):
+    src = _photos(home / "phone")
+    server.import_images([str(src[0])], names=["bench"], descriptions=["The lab bench with the circuit wired up"])
+    listed = server.list_images()["images"][0]
+    assert listed["description"].startswith("The lab bench")
+    res = server.create_document(template="assignment", title="T", body_markdown="# Q1\n\nText.\n\n![The lab bench with the circuit](bench.jpg)\n", filename="cap")
+    paras = [p.text for p in docx.Document(res["docx"]).paragraphs]
+    assert "The lab bench with the circuit" in paras
+
+
+def test_description_follows_a_rename(home):
+    src = _photos(home / "phone")
+    server.import_images([str(src[0])], names=["a"], descriptions=["Output waveform"])
+    server.rename_image("a.jpg", "output-wave")
+    assert server.list_images()["images"][0]["description"] == "Output waveform"
+
+
+BODY = """# Apparatus
+
+We used a function generator, an oscilloscope and a breadboard.
+
+# Procedure
+
+The RC low-pass filter was wired on the breadboard as in the circuit diagram.
+
+The input was set to 1 kHz and the output was read from the oscilloscope.
+
+# Observations
+
+The output amplitude at 1 kHz was lower than the input.
+"""
+
+
+def test_suggestions_match_images_to_the_right_sections(home):
+    src = _photos(home / "phone")
+    server.import_images([str(f) for f in src], names=["rc-filter-circuit", "scope-1khz-output", "holiday-beach"],
+                         descriptions=["Circuit diagram of the RC low-pass filter wired on a breadboard",
+                                       "Oscilloscope trace of the filter output at 1 kHz", "Friends at the beach"])
+    out = server.suggest_image_placement(body_markdown=BODY)
+    by_section = {s["section"]: [c["image"] for c in s["candidates"]] for s in out["suggestions"]}
+    assert "rc-filter-circuit.jpg" in by_section["Procedure"]
+    assert "scope-1khz-output.jpg" in by_section["Observations"]
+    assert "holiday-beach.png" in out["not_matched_anywhere"]  # irrelevant images are left out
+    after = next(c for s in out["suggestions"] if s["section"] == "Procedure" for c in s["candidates"] if c["image"].startswith("rc-"))
+    assert "RC low-pass" in after["after_text"]
+
+
+def test_place_image_inserts_after_the_chosen_paragraph(home):
+    src = _photos(home / "phone")
+    server.import_images([str(src[0]), str(src[1])], names=["scope-1khz", "scope-2khz"],
+                         descriptions=["Output trace at 1 kHz", "Output trace at 2 kHz"])
+    res = server.create_document(template="assignment", title="T", body_markdown=BODY, filename="pl")
+    out = server.place_image(res["docx"], "scope-1khz.jpg", "Procedure", after_text="input was set to 1 kHz", label="trace")
+    assert "error" not in out and out["placed"]["section"] == "Procedure"
+    body = server.get_document_source(res["docx"])["body_markdown"]
+    assert body.index("read from the oscilloscope") < body.index("![Output trace at 1 kHz](scope-1khz.jpg){#fig:trace}") < body.index("# Observations")
+    out = server.place_image(res["docx"], "scope-1khz.jpg", "Observations", side_by_side_with=["scope-2khz.jpg"], caption="Output at two frequencies")
+    assert "error" not in out
+    body = server.get_document_source(res["docx"])["body_markdown"]
+    assert "![(a) Output trace at 1 kHz](scope-1khz.jpg){caption=\"Output at two frequencies\"} ![(b) Output trace at 2 kHz](scope-2khz.jpg)" in body
+    assert "error" in server.place_image(res["docx"], "scope-1khz.jpg", "Procedure", after_text="no such words")
+
+
+def test_checker_flags_an_image_with_no_text(home):
+    src = _photos(home / "phone")
+    server.import_images([str(src[0])], names=["bench"])
+    res = server.create_document(template="assignment", title="T", body_markdown="# Q1\n\nText.\n\n![](bench.jpg)\n", filename="chk")
+    report = server.check_document(res["docx"])
+    assert any("no text under it" in i["message"] for i in report["issues"])

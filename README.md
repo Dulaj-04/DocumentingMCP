@@ -281,15 +281,29 @@ The images go under the right sections, the code goes in the Code section, and m
 left as marked placeholders. The sections run Aim → Apparatus → Theory → Procedure → Observation →
 Result → Discussion → Conclusion.
 
-**Your images are collected and named for you.** The AI copies your screenshots and photos into
-`Downloads\KDocs Images` (a sub-folder per assignment), looks at each one and gives it a descriptive
-name, such as `rc-filter-circuit.png` instead of `IMG_2041.jpg`. Your originals are never moved or
-deleted. After that it uses the images by name wherever they are needed, as many times as needed.
+**The AI decides which images to use, and where.** It works from your own image folder in Downloads
+(the default is `Downloads\KDocs Images`; tell it if you made a folder of your own and it remembers).
 
-> Put all the photos from C:\Users\User\Desktop\Lab4 into the report, name them properly and put each
-> one under the right section. Show the two scope screenshots side by side.
+1. It looks at each image, gives it a descriptive name (`rc-filter-circuit.png`, not `IMG_2041.jpg`)
+   and records one sentence about what it shows. If it can't tell, it asks you.
+2. It decides **whether** an image belongs. An image has to do a job the words can't, such as showing
+   the setup, a measured result or a circuit. Unrelated images are left out, and it tells you which.
+3. It decides **where**. It matches what each image shows with what each section says, then puts the
+   image straight after the paragraph that introduces it. Setup photos go under Apparatus or
+   Procedure, scope screenshots under Observations, circuit diagrams under Theory, and so on.
+4. It shows you the plan (image → section → after which paragraph) and places the images once you agree.
+5. Every image gets **a small line of text below it** saying what it shows, and the text mentions the
+   image before it appears ("as shown in Figure 2").
+
+> My lab photos are in Downloads\ET2013 Lab 4. Use whichever ones fit the report and put each one
+> where it belongs. Show me the plan first.
+
+> Put the two scope screenshots side by side under Observations.
 
 > Rename the second photo to "dac-output-5v" and update the report.
+
+Your original files are never moved or deleted. Reports find images by file name, so one image can be
+used in several places.
 
 <p align="center"><img src="docs/images/image-rows.png" width="620" alt="Three images side by side with (a), (b), (c) labels and one shared figure caption"></p>
 
@@ -423,7 +437,8 @@ The AI calls these for you. The list shows what the server can do.
 | | `create_document` | Build the Word file (only once a plan is approved) |
 | Your material | `extract_assignment_brief` | Pull the module, title, date, instructions, questions and marks from a brief |
 | | `read_source`, `list_files` | Read PDF/DOCX/XLSX/text/code; list your photos and screenshots |
-| | `import_images`, `list_images`, `rename_image` | Collect images in `Downloads\KDocs Images`, name them by content, rename later (reports are updated) |
+| | `import_images`, `list_images`, `describe_image`, `rename_image` | Collect images from your Downloads folder, name them by content, record what each shows, rename later (reports are updated) |
+| | `suggest_image_placement`, `place_image` | Decide which images belong and where, then insert them after the right paragraph with a line of text below |
 | | `spreadsheet_to_table` | Excel/CSV readings → table |
 | Drawings | `make_plot`, `make_diagram`, `make_circuit` | Preview a graph, block diagram or circuit |
 | Figures | `review_figures`, `approve_figures` | Critical review of each figure, and your approval |

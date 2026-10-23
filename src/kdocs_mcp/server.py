@@ -44,7 +44,7 @@ mcp = MCPServer(
         "what was done, show the result, and ask whether to continue or change something. Never run the "
         "whole job silently.\n"
         "Tools along the way: extract_assignment_brief/read_source for briefs and notes, get_writing_guide, "
-        "list_files, import_images/rename_image/list_images, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
+        "list_files, import_images/describe_image/rename_image/list_images, suggest_image_placement/place_image, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
         "create_document(plan_id=...), review_figures + approve_figures (student approves every figure), "
         "update_section/replace_text for changes (applied live if the document is open in Word; open_in_word "
         "offers that; never pass overwrite_manual_edits=true without the student's consent), "
@@ -82,6 +82,7 @@ def set_profile(
     department: str | None = None,
     logo_path: str | None = None,
     output_dir: str | None = None,
+    image_dir: str | None = None,
 ) -> dict:
     """Save student details once so every document reuses them. Only the fields given are changed.
 
@@ -91,6 +92,8 @@ def set_profile(
     department: use a newline to control the line break on the cover.
     logo_path: optional custom crest image; the KDU crest is bundled by default.
     output_dir: folder where documents are saved (default: Documents/KDocs).
+    image_dir: the folder in Downloads where the student keeps their images (default: Downloads/KDocs Images).
+        Every image tool uses it, so set it once if the student already made a folder.
     """
     p = load_profile()
     for key, val in dict(
@@ -101,6 +104,7 @@ def set_profile(
         department=department,
         logo_path=logo_path,
         output_dir=output_dir,
+        image_dir=image_dir,
     ).items():
         if val is not None:
             setattr(p, key, val.strip())
@@ -138,7 +142,8 @@ def list_files(folder: str, images_only: bool = True) -> dict:
 
 
 @mcp.tool()
-def import_images(sources: list[str], names: list[str] | None = None, project: str = "") -> dict:
+def import_images(sources: list[str], names: list[str] | None = None, project: str = "",
+                  descriptions: list[str] | None = None) -> dict:
     """Collect the student's screenshots and photos in one folder (Downloads/KDocs Images) with tidy names.
 
     sources: image files and/or folders (every image inside a folder is taken). Originals are copied, never
@@ -146,9 +151,12 @@ def import_images(sources: list[str], names: list[str] | None = None, project: s
     names: optional new names, one per image in order (descriptive, e.g. "adc-block-diagram"). The extension
         is kept and a number is added if the name is taken. Look at each image first and name it by what it shows.
     project: optional sub-folder, e.g. "ET2013-lab3", to keep one assignment's images together.
+    descriptions: optional, one plain sentence per image saying what it shows ("Oscilloscope trace of the
+        output at 1 kHz"). It becomes the small text under the image and is used to decide where it belongs.
+    The folder is the student's image_dir (set_profile); the default is Downloads/KDocs Images.
     Afterwards refer to an image in the report by its file name only: `![caption](adc-block-diagram.png)`.
     """
-    return image_library.import_images(sources, names, project)
+    return image_library.import_images(sources, names, project, descriptions)
 
 
 @mcp.tool()
@@ -186,6 +194,96 @@ def rename_image(path: str, new_name: str, update_documents: list[str] | None = 
             updated.append({"docx": d, "references": 0})
     res["documents"] = updated
     return res
+
+
+@mcp.tool()
+def describe_image(path: str, description: str, tags: list[str] | None = None) -> dict:
+    """Record what an image shows, after looking at it (or asking the student). One plain sentence, e.g.
+    "Oscilloscope trace of the filter output at 1 kHz". tags: topic words such as ["filter", "oscilloscope"].
+    This sentence is what appears in small text under the image, and what suggest_image_placement uses."""
+    return image_library.describe(path, description, tags)
+
+
+@mcp.tool()
+def suggest_image_placement(docx_path: str = "", body_markdown: str = "", project: str = "") -> dict:
+    """Decide which images belong where. Compares every described image in the library with each section
+    of the report and returns the best matches, the paragraph each one follows, images that fit nowhere,
+    images already used, and images still needing a description.
+
+    Give docx_path (a document made by this server) or body_markdown (a draft). It is advice: check each
+    match against the text, show the student the proposed placements, then insert with place_image.
+    """
+    if docx_path:
+        body_markdown = load_source(docx_path).body_markdown
+    if not body_markdown.strip():
+        return {"error": "Give docx_path or body_markdown."}
+    return image_library.suggest_placement(body_markdown, project)
+
+
+@mcp.tool()
+def place_image(docx_path: str, image: str, section: str, caption: str = "", after_text: str = "",
+                width: str = "", label: str = "", side_by_side_with: list[str] | None = None, export_pdf: bool = False,
+                overwrite_manual_edits: bool = False) -> dict:
+    """Insert an image from the library into a section of an existing document, at a chosen spot.
+
+    image: file name or library path. section: heading text / outline number / "Q2".
+    caption: the small text under the image; if empty, the description saved for the image is used. Write
+        it as a short plain sentence saying what the image shows.
+    after_text: a few words from the paragraph the image should follow (it goes after that paragraph).
+        Empty: at the end of the section's own text, before any sub-heading.
+    width: optional, e.g. "60%" (a single image) - default sizes it to fit.
+    label: a short id such as "rc-circuit". The image becomes a numbered "Figure n" that the text can point
+        to with @fig:rc-circuit. Give one whenever the text refers to the image.
+    side_by_side_with: other library images to put on the same line as `image` (2 or 3 images in total).
+    Remember to mention the image in the text ("as shown in Figure n"), and show the student where it went.
+    """
+    src = load_source(docx_path)
+    names = [image] + list(side_by_side_with or [])
+    index = image_library.load_index()
+    parts = []
+    for i, name in enumerate(names):
+        f = image_library.find(name)
+        if f is None:
+            return {"error": f"No such image in the library: {name}"}
+        own = index.get(image_library._key(f), {}).get("description", "")
+        text = (caption if len(names) == 1 and caption else own).strip()
+        if len(names) > 1:
+            text = f"({chr(97 + i)}) {text}" if text else f"({chr(97 + i)})"
+        bits = []
+        if i == 0 and label:
+            bits.append("#fig:" + re.sub(r"[^A-Za-z0-9_-]+", "-", label.strip().removeprefix("fig:")))
+        if width and len(names) == 1:
+            bits.append(f"width={width}")
+        if i == 0 and len(names) > 1 and caption:  # one shared caption for the whole row
+            bits.append('caption="' + caption.replace('"', "'") + '"')
+        attrs = "{" + " ".join(bits) + "}" if bits else ""
+        parts.append(f"![{text}]({f.name}){attrs}")
+    line = " ".join(parts)
+
+    sec = project.find_section(src.body_markdown, section)
+    lines = src.body_markdown.splitlines()
+    own_end = sec.end
+    for h in project.sections(src.body_markdown):  # stop at the first sub-heading
+        if h.start > sec.start and h.start < own_end:
+            own_end = h.start
+            break
+    at = own_end
+    if after_text:
+        needle = after_text.lower().strip()
+        hit = next((i for i in range(sec.start + 1, own_end) if needle in lines[i].lower()), None)
+        if hit is None:
+            return {"error": f"Could not find '{after_text}' in section '{sec.title}'. Use a few exact words from the paragraph."}
+        at = hit + 1
+        while at < own_end and lines[at].strip():  # end of that paragraph
+            at += 1
+    while at > sec.start + 1 and not lines[at - 1].strip():
+        at -= 1
+    lines[at:at] = ["", line, ""]
+    new_section = "\n".join(lines[sec.start : sec.end + 3])
+    out = update_section(docx_path, section, new_section, export_pdf, overwrite_manual_edits)
+    if "error" not in out:
+        out["placed"] = {"image": names, "section": sec.title, "after": after_text or "(end of the section's text)"}
+    return out
 
 
 PageNumbers = Literal["none", "bottom-center", "bottom-right"]

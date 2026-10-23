@@ -141,17 +141,39 @@ later makes it pending again.
 
 ## Images the student gives you
 
-1. Call `import_images` with the files or folder the student mentions. They are copied into
-   Downloads/KDocs Images (a sub-folder per assignment via `project`); the originals stay untouched.
-2. Look at each image (and `list_images` for size and shape) and give it a descriptive name, either in
-   `names` at import time or later with `rename_image` (pass `update_documents` if a report already uses
-   it). Names describe the content: `rc-filter-circuit`, `lab3-oscilloscope-1khz`, not `IMG_2041`.
-3. Use the images by file name across the report: `![caption](rc-filter-circuit.png)`. The same image can
-   be used in several places.
-4. Placement: a single image is centred and sized to fit. Put two or three related images (before/after,
-   input/output, different frequencies) on one line to place them side by side. Portrait phone photos
-   suit a row of two. Give every figure a caption and refer to it in the text (`@fig:id`).
-5. Ask the student if you cannot tell what an image shows. Never guess a label for a lab photo.
+The student keeps their images in a folder in Downloads (their own, or the default `KDocs Images`). If
+they made a folder, save it once with `set_profile(image_dir=...)`; every image tool then uses it.
+
+**Prepare**
+1. `import_images` copies new files in (originals untouched). Images already in the folder need no import.
+2. Look at every image. Give it a descriptive name (`rename_image`) and record one plain sentence of what
+   it shows with `describe_image` ("Oscilloscope trace of the filter output at 1 kHz"). If you cannot tell
+   what it shows, ask the student. Never guess a label for a lab photo.
+
+**Decide whether an image belongs at all**
+3. Use an image only if it does a job the words cannot: shows a setup, a measured result, a circuit, a
+   screenshot of a tool, or a comparison. Do not add one just to fill space, and leave out images
+   unrelated to the question or section. Tell the student which images you left out and why.
+4. Run `suggest_image_placement` on the draft. It matches each image to the sections that talk about it
+   and says which paragraph it follows. Treat it as advice: read the section and confirm that the text
+   really refers to what the image shows.
+
+**Decide where it goes**
+5. Put the image straight after the paragraph that introduces it, never before the text has mentioned
+   it, and never at the end of a section by default. Setup photos go in Apparatus or Procedure, measured
+   screenshots and graphs in Observations / Results, circuit diagrams in Theory or Design, comparison
+   images next to the discussion that compares them.
+6. Mention every image in the text before it appears ("as shown in Figure 2"), and use `@fig:id`.
+7. Put related images (input and output, before and after, two frequencies) on one line so they sit
+   side by side. Two or three per row; portrait phone photos suit a row of two. Everything else is one
+   image per place, centred and sized to fit.
+
+**Text under every image**
+8. Every image carries a small line saying what it shows: `![Oscilloscope trace at 1 kHz](scope-1khz.png)`.
+   One sentence, plain, no "this image shows". In a row each image gets (a), (b) and the row shares one
+   caption.
+9. Show the student the planned placements (image, section, after which paragraph) and apply them with
+   `place_image` once they agree. The same image may be used in more than one place if it supports both.
 
 Image paths may be absolute, or relative to `assets_dir`. Use `list_files` to see what images the
 student has. Never invent image paths. If a required screenshot or photo is missing, write a short

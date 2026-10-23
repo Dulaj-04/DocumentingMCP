@@ -1221,6 +1221,16 @@ class ReportBuilder:
         p.add_run().add_picture(str(path), width=self._img_width(path, attr[2]))
         if number is not None:
             self._caption(container, "Figure", number, attr[0], caption)
+        elif _plain_text(caption).strip():
+            # No numbered caption, but the image still gets a small line saying what it shows.
+            p.paragraph_format.keep_with_next = True
+            cp = container.add_paragraph()
+            cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cp.paragraph_format.space_before = Pt(0)
+            cp.paragraph_format.space_after = Pt(10)
+            self._inlines(cp, caption, {})
+            for run in cp.runs:
+                run.font.size = Pt(self.s.body_size - 1)
 
     ROW_MAX_COLS = 3
     ROW_MAX_H = 3.4  # inches: keeps a row from filling a whole page

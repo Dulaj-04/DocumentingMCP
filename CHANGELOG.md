@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0
+
+**Using images where they fit**
+- Your own image folder: `set_profile(image_dir=...)` points every image tool at the folder you made in
+  Downloads (the default is still `Downloads/KDocs Images`).
+- `describe_image` records what each image shows. That sentence becomes the small text under the image
+  and is used to match it to the right section. Descriptions follow an image when it is renamed.
+- `suggest_image_placement` matches every image with the report's sections and says which paragraph each
+  follows, which images fit nowhere, which are already used and which still need a description.
+- `place_image` inserts an image after a chosen paragraph, optionally side by side with others, as a
+  numbered figure with a label the text can refer to.
+- Every image now gets a small line of text below it (a numbered caption when figure captions are on).
+- The checker flags images with no text under them.
+- Writing guide: when to use an image at all, where it belongs, and how to caption it.
+
 ## 1.3.0
 
 **Images**

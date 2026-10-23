@@ -145,6 +145,14 @@ def check_document(
         for m in _PLACEHOLDER.finditer(t):
             add("error", t[:60], f"Placeholder left in the document: '{m.group(0)}'")
 
+    # Images need a line of text saying what they show, and the text should mention them
+    if markdown:
+        for m in re.finditer(r"!\[([^\]]*)\]\(([^)\s]+)", markdown):
+            if not m.group(1).strip():
+                add("warning", m.group(2), f"Image '{Path(m.group(2)).name}' has no text under it. Add a short line saying what it shows.")
+            elif len(m.group(1).split()) > 40:
+                add("info", m.group(2), f"The text under '{Path(m.group(2)).name}' is long. Keep it to a sentence.")
+
     # Spelling: known typos first, then a dictionary pass
     lower_counts = Counter(w.lower().strip("'’-") for w in words)
     for typo, fix in COMMON_TYPOS.items():

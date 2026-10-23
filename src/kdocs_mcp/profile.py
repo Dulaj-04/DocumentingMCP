@@ -35,6 +35,7 @@ class Profile:
     department: str = DEFAULT_DEPARTMENT
     logo_path: str = ""
     output_dir: str = ""
+    image_dir: str = ""  # the student's own image folder (default: Downloads/KDocs Images)
 
     def logo(self) -> Path:
         if self.logo_path and Path(self.logo_path).expanduser().is_file():
