@@ -98,6 +98,13 @@ series:
 - Use `spreadsheet_to_table` to turn the student's Excel/CSV readings into a pipe table. Tables are
   rendered as plain Word tables (thin black grid, bold header row, no colours).
 
+## Work with the student, not for them
+
+- Never write the whole document in one go. Use the plan from `start_assignment` and `save_plan`.
+- After each step, show the result and ask before continuing.
+- If something is unclear while you are working (a missing value, an ambiguous question, which
+  method the lecturer expects), stop and ask instead of guessing.
+
 ## Figures must be approved by the student
 
 Every generated plot, block diagram, flowchart and circuit starts as **pending**.

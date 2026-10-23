@@ -108,6 +108,49 @@ The Word file is saved in `Documents\DocumentingMCP`.
 You talk to Claude or ChatGPT normally; the AI decides which tools to call. Below are the
 everyday tasks and the kind of thing to type. Paths are examples, so use your own.
 
+### How a session goes: plan first, then step by step
+
+Nothing is written until you have agreed a plan. Every new assignment goes like this:
+
+1. **You describe the task.** Give the brief if you have it.
+2. **You get a requirements checklist.** Tick what this assignment needs:
+
+   - [x] Answer every question the brief asks for
+   - [x] Base the theory on the lecture notes provided
+   - [x] Draw diagrams wherever a question says "diagram" or "sketch"
+   - [ ] Plot graphs from my readings
+   - [x] Show full working for numerical questions
+   - [x] IEEE references
+   - [ ] Include program code
+   - …
+
+   You also see the **current defaults** and can change any of them:
+   - page border: 0.5 pt, single line
+   - page numbers: bottom centre
+   - tables: plain Word grid
+   - equation numbers, figure captions and contents page: off
+   - PDF at the end: yes
+
+   If your app supports forms, this appears as a form with real tick boxes. Otherwise it comes as a
+   chat message.
+3. **The AI asks all its questions in one go.** For example: module and title, submission date,
+   which notes to use, where your data and photos are, word or page limits, and anything the
+   lecturer asked for.
+4. **You get a rough plan to approve.** For example: *1. Read brief and notes → 2. Answer Q1 with
+   block diagram → 3. Answer Q2 calculation → 4. Review figures with you → 5. References and
+   check → 6. Export PDF.* Say "yes", or tell it what to change.
+5. **The work happens one step at a time.** After each step the AI tells you what it did, shows you
+   the result and asks whether to carry on or change something.
+
+> I need to do my ET2013 assignment on DACs. Brief: C:\Users\User\Downloads\ET2013_Assignment.pdf
+
+> *(after the checklist)* Tick plots and code too. Make the border 1.5 pt and put the page numbers
+> on the right. Due 17/05/2026, use lecture 5, no page limit.
+
+> *(after the plan)* Looks good, go ahead.
+
+If you really want to skip planning for a quick job, say so ("skip the planning, just write it").
+
 ### 1. First time only: save your details
 
 > Set my profile: name **A B C Student**, reg no **D/ENG/EE/25/0000**, intake **42**.
@@ -222,6 +265,7 @@ Ask for these when a module wants them:
 |---|---|
 | "add a table of contents" | Contents page after the cover (also lists of figures and tables) |
 | "no page numbers" / "page numbers on the right" | Page numbers are **on by default** (bottom centre, never on the cover) |
+| "make the border thicker" / "1.5 pt double border" / "no border" | Page border thickness: 0.25 to 6 pt (default 0.5 pt). Styles: single, double, thick-thin, dotted, dashed |
 | "put the module code in the header" | Running header on every page except the cover |
 | "number all the equations" | (1), (2), … on the right of each equation |
 | "caption every figure" | "Figure n: …" under every picture |
@@ -267,6 +311,7 @@ a student rather than an AI, are in [`src/documenting_mcp/guides.py`](src/docume
 
 | Area | Tools |
 |---|---|
+| Planning | `start_assignment` (checklist, defaults and questions), `save_plan`, `approve_plan`, `update_plan_step`, `get_plan` |
 | Profile | `get_profile`, `set_profile` |
 | Writing | `list_templates`, `get_writing_guide`, `create_document` |
 | Your material | `extract_assignment_brief`, `read_source` (PDF/DOCX/XLSX/TXT/code), `list_files`, `spreadsheet_to_table` |
@@ -277,8 +322,8 @@ a student rather than an AI, are in [`src/documenting_mcp/guides.py`](src/docume
 | Checking | `check_document`, `check_similarity` |
 | Output | `export_pdf` (with Word installed, it refreshes all numbering first) |
 
-**Defaults.** Page numbers are on (bottom centre, never on the cover). Every generated figure needs
-your approval. **Optional extras:** `toc`, `list_of_figures`, `list_of_tables`, `header_text`,
+**Defaults.** Nothing is written before you approve a plan. Page numbers are on (bottom centre,
+never on the cover). The page border is 0.5 pt (changeable). Every generated figure needs your approval. **Optional extras:** `toc`, `list_of_figures`, `list_of_tables`, `header_text`,
 `footer_text`, `figure_captions`, `number_equations` and `table_style="shaded"`.
 
 ## Good to know

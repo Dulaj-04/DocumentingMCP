@@ -46,6 +46,7 @@ def test_omml_is_native_and_upright():
 
 def test_numbered_equations(tmp_path, monkeypatch):
     monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path))
+    monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
     server.set_profile(output_dir=str(tmp_path / "out"))
     body = "# Q\n\n$$V = IR \\tag{7}$$\n\n$$P = VI$$\n\n$$E = Pt \\notag$$\n"
     res = server.create_document(template="assignment", title="T", body_markdown=body, number_equations=True)

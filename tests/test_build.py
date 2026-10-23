@@ -14,6 +14,7 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
     server.set_profile(name="W M L M Herath", reg_no="D/ENG/EE/25/0008", intake="42", output_dir=str(tmp_path / "out"))
     assets = tmp_path / "imgs"
     assets.mkdir()

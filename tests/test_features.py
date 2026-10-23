@@ -24,6 +24,7 @@ REFS = [
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("DOCUMENTING_MCP_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("DOCUMENTING_MCP_REQUIRE_PLAN", "0")
     server.set_profile(name="D Wickramanayake", reg_no="D/ENG/EE/25/00030", intake="42", output_dir=str(tmp_path / "out"))
     return tmp_path
 

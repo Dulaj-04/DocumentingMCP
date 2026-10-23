@@ -64,6 +64,8 @@ class BuildOptions:
     header_text: str = ""
     footer_text: str = ""
     approvals: dict[str, str] = field(default_factory=dict)  # figure key -> approved content digest
+    border_width_pt: float = 0.5  # page border line width; 0 = no border (master: thin 0.5 pt)
+    border_style: str = "single"  # single | double | thick-thin | dotted | dashed | none
     body_markdown: str = ""  # to tell whether a figure is referred to in the text
 
 
@@ -107,13 +109,21 @@ def _shade(ppr_or_tcpr, fill: str) -> None:
     ppr_or_tcpr.append(shd)
 
 
-def _page_borders(sect_pr) -> None:
+# Line widths Word offers for page borders, in points (stored as eighths of a point).
+BORDER_WIDTHS_PT = (0.25, 0.5, 0.75, 1.0, 1.5, 2.25, 3.0, 4.5, 6.0)
+BORDER_STYLES = {"single": "single", "double": "double", "thick-thin": "thickThinSmallGap", "dotted": "dotted", "dashed": "dashed"}
+
+
+def _page_borders(sect_pr, width_pt: float = 0.5, style: str = "single") -> None:
+    if width_pt <= 0 or style == "none":
+        return
+    width_pt = min(BORDER_WIDTHS_PT, key=lambda w: abs(w - width_pt))
     borders = OxmlElement("w:pgBorders")
     borders.set(qn("w:offsetFrom"), "page")
     for side in ("top", "left", "bottom", "right"):
         el = OxmlElement(f"w:{side}")
-        el.set(qn("w:val"), "single")
-        el.set(qn("w:sz"), "4")
+        el.set(qn("w:val"), BORDER_STYLES.get(style, "single"))
+        el.set(qn("w:sz"), str(int(round(width_pt * 8))))
         el.set(qn("w:space"), "31")
         el.set(qn("w:color"), "000000")
         borders.append(el)
@@ -343,7 +353,7 @@ class ReportBuilder:
         sec.top_margin = sec.bottom_margin = Inches(MARGIN_TB)
         sec.left_margin = sec.right_margin = Inches(MARGIN_SIDE)
         sec.header_distance = sec.footer_distance = Inches(0.5)
-        _page_borders(sec._sectPr)
+        _page_borders(sec._sectPr, self.opt.border_width_pt, self.opt.border_style)
 
     def _setup_styles(self) -> None:
         styles = self.doc.styles

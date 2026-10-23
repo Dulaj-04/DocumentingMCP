@@ -194,3 +194,8 @@ left-aligned cells, and Word's default cell padding.
 - **Page numbers are mandatory.** They are on by default, bottom centre, and the cover is never numbered.
 - **Generated figures must be approved by the student** after a critical review (`review_figures` /
   `approve_figures`). Unapproved figures block PDF export and the pre-submission check.
+- **Plan first.** No document is generated until the student has ticked a requirements checklist,
+  confirmed or changed the defaults, answered the open questions and approved a step plan. Work then
+  proceeds step by step, with a check-in after each step.
+- **Page border is configurable:** 0.25–6 pt, single, double, thick-thin, dotted or dashed. The
+  default stays the master's thin 0.5 pt single line.

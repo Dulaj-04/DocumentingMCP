@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 import re
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Literal
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
+from pydantic import Field, create_model
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import export, ingest, project, quality, references
+from . import export, ingest, planning, project, quality, references
 from .builder import BuildOptions, CoverInfo, build_report
 from .guides import guide_for
 from .profile import Profile, load_profile, save_profile
@@ -27,17 +29,20 @@ mcp = MCPServer(
     "DocumentingMCP",
     instructions=(
         "Generates university engineering documents (lab reports, CA/simulation reports, Q&A assignments) "
-        "as formatted Word files in the KDU EE house style (the master assignment format). Workflow: "
-        "(1) get_profile; if name/reg_no/intake are missing, ask and call set_profile. "
-        "(2) If the student has a brief, extract_assignment_brief; read lecture notes with read_source. "
-        "(3) get_writing_guide for the template and follow it. "
-        "(4) list_files for screenshots; use ```plot / ```diagram / ```circuit blocks for graphs, block "
-        "diagrams and circuits; spreadsheet_to_table for data; lookup_reference/add_reference + [@key] for citations. "
-        "(5) create_document with the full Markdown body (page numbers are on by default). "
-        "(5b) review_figures: critically review every generated figure, show each one to the student and "
-        "call approve_figures only after the student explicitly approves it. "
-        "(6) check_document (and check_similarity against the notes) and fix issues with update_section / "
-        "replace_text instead of regenerating. Report the saved file path to the student."
+        "as formatted Word files in the KDU EE house style. This is an INTERACTIVE, PLAN-FIRST workflow:\n"
+        "1. get_profile (ask for missing name/reg no/intake, then set_profile).\n"
+        "2. start_assignment as soon as the student describes a task. Do NOT write anything yet. Show the "
+        "requirements checklist with tick boxes and the current defaults (page border, page numbers, tables, ...), "
+        "and ask ALL open questions in one message. Wait for the reply.\n"
+        "3. save_plan with their ticks, changed defaults, answers and a rough step-by-step plan; show the plan "
+        "and ask for approval or changes. approve_plan only after the student explicitly agrees.\n"
+        "4. Work through the plan one step at a time. After each step call update_plan_step, tell the student "
+        "what was done, show the result, and ask whether to continue or change something. Never run the "
+        "whole job silently.\n"
+        "Tools along the way: extract_assignment_brief/read_source for briefs and notes, get_writing_guide, "
+        "list_files, ```plot/```diagram/```circuit blocks, spreadsheet_to_table, lookup_reference/add_reference, "
+        "create_document(plan_id=...), review_figures + approve_figures (student approves every figure), "
+        "update_section/replace_text for changes, check_document and check_similarity before export_pdf."
     ),
 )
 
@@ -165,6 +170,8 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
         header_text=opts.get("header_text") or "",
         footer_text=opts.get("footer_text") or "",
         approvals=dict(src.approvals),
+        border_width_pt=float(opts.get("border_width_pt", 0.5)),
+        border_style=opts.get("border_style") or "single",
         body_markdown=src.body_markdown,
     )
     result = build_report(
@@ -203,6 +210,197 @@ def _build(src: DocSource, export_pdf: bool = False, out_path: Path | None = Non
     return response
 
 
+# --------------------------------------------------------------------------- plan-first workflow
+
+
+def _elicitation_supported(ctx: Context) -> bool:
+    try:
+        caps = ctx.client_capabilities
+        return bool(caps is not None and getattr(caps, "elicitation", None) is not None)
+    except Exception:
+        return False
+
+
+async def _ask_with_form(ctx: Context, plan: "planning.Plan") -> bool:
+    """Show the checklist as a real form (tick boxes) when the client supports MCP elicitation."""
+    fields: dict = {}
+    for key, label, default in planning.REQUIREMENTS:
+        fields[key] = (bool, Field(default=plan.requirements.get(key, default), title=label, description=label))
+    for key, val in plan.settings.items():
+        typ = type(val) if isinstance(val, (bool, float, int)) else str
+        help_ = planning.SETTING_HELP[key]
+        fields[f"setting_{key}"] = (typ, Field(default=val, title="Default: " + help_.split(":")[0], description=help_))
+    for q in plan.open_questions:
+        fields[f"answer_{q['key']}"] = (str, Field(default=plan.answers.get(q["key"], ""), title=q["question"], description=q["question"]))
+    Form = create_model("AssignmentRequirements", **fields)
+    try:
+        result = await ctx.elicit("Tick what this assignment needs, change any defaults, and answer the questions.", Form)
+    except Exception:
+        return False
+    if getattr(result, "action", "") != "accept" or result.data is None:
+        return False
+    data = result.data.model_dump()
+    for key, _, _ in planning.REQUIREMENTS:
+        plan.requirements[key] = bool(data.get(key, plan.requirements.get(key)))
+    for key in list(plan.settings):
+        if f"setting_{key}" in data:
+            plan.settings[key] = data[f"setting_{key}"]
+    for q in list(plan.open_questions):
+        ans = str(data.get(f"answer_{q['key']}", "")).strip()
+        if ans:
+            plan.answers[q["key"]] = ans
+    plan.open_questions = [q for q in plan.open_questions if q["key"] not in plan.answers]
+    plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": "form answered"})
+    planning.save(plan)
+    return True
+
+
+@mcp.tool()
+async def start_assignment(request: str, ctx: Context, template: str = "", brief_path: str = "") -> dict:
+    """FIRST STEP for any new assignment, lab report or CA report. Call it as soon as the student describes
+    the task, before writing anything. It creates a plan and returns a requirements checklist (tick boxes),
+    the current defaults (page border, page numbers, tables, ...) and every open question.
+
+    request: the student's request in their words. template: assignment | lab_report | ca_report if known.
+    brief_path: the brief / lab sheet, if given (module, title, due date and questions are pre-filled).
+    If the app supports forms, the checklist is shown to the student directly."""
+    plan = planning.new_plan(request, template)
+    detected = {}
+    if brief_path:
+        try:
+            b = ingest.parse_brief(ingest.read_text(brief_path).text)
+            detected = {"module": f"{b.module_code} – {b.module_name}".strip(" –") if b.module_code else "",
+                        "title": b.title, "submission_date": b.due_date,
+                        "questions_found": [f"{q['number']}. {q['text'][:120]}" for q in b.questions]}
+            plan.answers.update({k: v for k, v in detected.items() if k in ("module", "title", "submission_date") and v})
+            plan.answers["brief"] = brief_path
+        except Exception as exc:
+            detected = {"brief_error": str(exc)}
+    plan.open_questions = [q for q in plan.open_questions if q["key"] not in plan.answers]
+    planning.save(plan)
+
+    form_used = _elicitation_supported(ctx) and await _ask_with_form(ctx, plan)
+    plan = planning.load(plan.id)
+    return {
+        "plan_id": plan.id,
+        "form_answered_by_student": form_used,
+        "checklist": planning.checklist_markdown(plan),
+        "open_questions": [q["question"] for q in plan.open_questions],
+        "detected_from_brief": detected,
+        "instruction": (
+            "STOP. Do not write the document yet. "
+            + ("The student filled in the form; confirm the remaining open questions (if any). " if form_used else
+               "Show the student the checklist above exactly as tick boxes, list the defaults and ask if any should "
+               "change, and ask ALL the open questions in ONE message. ")
+            + "Add your own questions if the brief is ambiguous. Wait for the reply, then draft a rough plan "
+            "(the steps you will take) and call save_plan."
+        ),
+    }
+
+
+@mcp.tool()
+def save_plan(
+    plan_id: str,
+    steps: list[str],
+    requirements: dict | None = None,
+    settings: dict | None = None,
+    answers: dict | None = None,
+    still_unanswered: list[str] | None = None,
+) -> dict:
+    """Save the student's ticked requirements, changed defaults, answers and a rough step-by-step plan, then
+    show the plan to the student for approval.
+
+    steps: short ordered steps, e.g. ["Read brief and notes", "Answer Q1 with block diagram", "Answer Q2
+    calculation", "Review figures with student", "References + pre-submission check", "Export PDF"].
+    requirements: {key: true/false} from the checklist. settings: changed defaults, e.g.
+    {"border_width_pt": 1.5, "page_numbers": "bottom-right"}. answers: {"module": ..., "title": ...}.
+    still_unanswered: questions you still need answered (the plan cannot be approved until they are)."""
+    plan = planning.load(plan_id)
+    if requirements:
+        plan.requirements.update({k: bool(v) for k, v in requirements.items()})
+    if settings:
+        unknown = [k for k in settings if k not in planning.DEFAULT_SETTINGS]
+        if unknown:
+            return {"error": f"Unknown settings {unknown}. Allowed: {list(planning.DEFAULT_SETTINGS)}"}
+        plan.settings.update(settings)
+    if answers:
+        plan.answers.update({k: str(v) for k, v in answers.items()})
+    plan.open_questions = [{"key": f"extra{i}", "question": q} for i, q in enumerate(still_unanswered or [])]
+    plan.steps = [{"n": i + 1, "title": t, "status": "pending", "note": ""} for i, t in enumerate(steps)]
+    plan.status = "gathering_requirements" if plan.open_questions else "awaiting_approval"
+    plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": "plan saved"})
+    planning.save(plan)
+    return {
+        "plan_id": plan.id,
+        "status": plan.status,
+        "plan": planning.plan_markdown(plan),
+        "instruction": (
+            "Ask the remaining questions first." if plan.open_questions else
+            "Show this plan to the student and ask: approve, or what should change? Call approve_plan only after "
+            "they clearly agree; if they want changes, call save_plan again."
+        ),
+    }
+
+
+@mcp.tool()
+def approve_plan(plan_id: str, student_reply: str) -> dict:
+    """Mark the plan approved. Call ONLY after the student has explicitly agreed to the plan.
+    student_reply: the student's own words agreeing (e.g. "yes go ahead")."""
+    plan = planning.load(plan_id)
+    if not student_reply.strip():
+        return {"error": "Quote the student's agreement in student_reply."}
+    if plan.open_questions:
+        return {"error": "There are unanswered questions: " + "; ".join(q["question"] for q in plan.open_questions)}
+    if not plan.steps:
+        return {"error": "The plan has no steps yet; call save_plan first."}
+    plan.status = "approved"
+    plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": "approved", "student": student_reply})
+    planning.save(plan)
+    first = plan.steps[0]["title"]
+    return {
+        "status": "approved",
+        "plan": planning.plan_markdown(plan),
+        "instruction": f"Start step 1 ({first}). Call update_plan_step when it begins and when it is done, and "
+        "check in with the student after every step.",
+    }
+
+
+@mcp.tool()
+def update_plan_step(plan_id: str, step: int, status: Literal["in_progress", "done", "needs_changes"], note: str = "") -> dict:
+    """Record progress on a plan step. After a step is done the student must be asked before continuing:
+    tell them what was done, show the result (file, figure, section) and ask if it is OK or what to change."""
+    plan = planning.load(plan_id)
+    match = [s_ for s_ in plan.steps if s_["n"] == step]
+    if not match:
+        return {"error": f"No step {step}. Steps: " + ", ".join(f"{s_['n']}. {s_['title']}" for s_ in plan.steps)}
+    match[0]["status"], match[0]["note"] = status, note
+    if plan.status == "approved":
+        plan.status = "in_progress"
+    if all(s_["status"] == "done" for s_ in plan.steps):
+        plan.status = "done"
+    plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": f"step {step} {status}", "note": note})
+    planning.save(plan)
+    nxt = next((s_ for s_ in plan.steps if s_["status"] != "done"), None)
+    if status == "done":
+        instruction = (f"CHECK-IN: tell the student step {step} is done ({match[0]['title']}), show what changed, and ask "
+                       "whether they are happy or want changes. "
+                       + (f"Only after they reply, continue with step {nxt['n']} ({nxt['title']})." if nxt else
+                          "All steps are done. Ask if anything else is needed before finishing."))
+    elif status == "needs_changes":
+        instruction = "Make the changes the student asked for, then mark the step done again and check in."
+    else:
+        instruction = "Work on this step, then mark it done and check in with the student."
+    return {"plan": planning.plan_markdown(plan), "status": plan.status, "instruction": instruction}
+
+
+@mcp.tool()
+def get_plan(plan_id: str) -> dict:
+    """Show a plan with its requirements, settings, answers, steps and progress."""
+    plan = planning.load(plan_id)
+    return {"plan": planning.plan_markdown(plan), "status": plan.status, "answers": plan.answers,
+            "settings": plan.settings, "docx": plan.docx_path}
+
+
 @mcp.tool()
 def create_document(
     template: Template,
@@ -224,10 +422,14 @@ def create_document(
     header_text: str = "",
     footer_text: str = "",
     table_style: Literal["grid", "shaded"] = "grid",
+    border_width_pt: float = 0.5,
+    border_style: Literal["single", "double", "thick-thin", "dotted", "dashed", "none"] = "single",
     title_font: str = "",
     name: str = "",
     reg_no: str = "",
     intake: str = "",
+    plan_id: str = "",
+    skip_planning: bool = False,
 ) -> dict:
     """Generate the formatted Word document (cover page + body) and save it. Defaults reproduce the master
     assignment format exactly; every extra (TOC, page numbers, captions) is opt-in.
@@ -254,9 +456,37 @@ def create_document(
     header_text / footer_text: optional running header/footer text on body pages.
     table_style: grid (default: plain Word Table Grid, black lines, no colours, bold header) | shaded
         (navy header with banded rows).
+    border_width_pt / border_style: page border, default thin 0.5 pt single line (0 or "none" removes it).
+    plan_id: the approved plan from start_assignment/save_plan/approve_plan. Required: the document is
+        only written after the student has approved a plan. Settings agreed in the plan are applied.
+    skip_planning: only if the student explicitly says to skip the planning step.
     title_font: override the cover title font (default Agency FB, as in the master).
     name / reg_no / intake: override the stored profile for this document only.
     """
+    plan = None
+    if plan_id:
+        try:
+            plan = planning.load(plan_id)
+        except FileNotFoundError as exc:
+            return {"error": str(exc)}
+    if os.environ.get("DOCUMENTING_MCP_REQUIRE_PLAN", "1") != "0" and not skip_planning:
+        if plan is None or plan.status not in ("approved", "in_progress", "done"):
+            return {
+                "error": "No approved plan yet. Call start_assignment, show the student the requirements checklist "
+                "and questions, save_plan with their answers, and approve_plan once they agree. Then call "
+                "create_document with plan_id.",
+                "plan_status": plan.status if plan else None,
+            }
+    if plan is not None:  # settings the student agreed in the plan win over untouched defaults
+        st = plan.settings
+        defaults = {"page_numbers": "bottom-center", "table_style": "grid", "border_width_pt": 0.5, "border_style": "single",
+                    "number_equations": False, "figure_captions": False, "toc": False}
+        given = {"page_numbers": page_numbers, "table_style": table_style, "border_width_pt": border_width_pt,
+                 "border_style": border_style, "number_equations": number_equations, "figure_captions": figure_captions, "toc": toc}
+        merged = {k: (st[k] if k in st and given[k] == defaults[k] else given[k]) for k in defaults}
+        page_numbers, table_style = merged["page_numbers"], merged["table_style"]
+        border_width_pt, border_style = float(merged["border_width_pt"]), merged["border_style"]
+        number_equations, figure_captions, toc = merged["number_equations"], merged["figure_captions"], merged["toc"]
     src = DocSource(
         template=template,
         title=title,
@@ -281,9 +511,19 @@ def create_document(
             "footer_text": footer_text,
             "title_font": title_font,
             "table_style": table_style,
+            "border_width_pt": border_width_pt,
+            "border_style": border_style,
         },
     )
-    return _build(src, export_pdf)
+    result = _build(src, export_pdf)
+    if plan is not None:
+        plan.docx_path = result["docx"]
+        plan.status = "in_progress" if plan.status == "approved" else plan.status
+        plan.history.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "event": "document created", "docx": result["docx"]})
+        planning.save(plan)
+        result["next"] = ("Mark the step done with update_plan_step, tell the student what was produced, then review "
+                          "the figures with them (review_figures) before moving on.")
+    return result
 
 
 # --------------------------------------------------------------------------- editing existing documents
@@ -372,6 +612,8 @@ def update_document_settings(
     header_text: str | None = None,
     footer_text: str | None = None,
     table_style: Literal["grid", "shaded"] | None = None,
+    border_width_pt: float | None = None,
+    border_style: Literal["single", "double", "thick-thin", "dotted", "dashed", "none"] | None = None,
     export_pdf: bool = False,
 ) -> dict:
     """Change the cover details or document options (only the fields given) and rebuild."""
@@ -384,7 +626,7 @@ def update_document_settings(
     for key, val in dict(
         figure_captions=figure_captions, number_equations=number_equations, toc=toc, list_of_figures=list_of_figures,
         list_of_tables=list_of_tables, page_numbers=page_numbers, header_text=header_text, footer_text=footer_text,
-        table_style=table_style,
+        table_style=table_style, border_width_pt=border_width_pt, border_style=border_style,
     ).items():
         if val is not None:
             src.options[key] = val
