@@ -128,6 +128,23 @@ def workflow() -> None:
     save(card(Image.open(WORK / "flow.png"), 620), "workflow.png")
 
 
+def live_editing() -> None:
+    render_flowchart(
+        """flowchart TD
+          A([You ask for a change]) --> B{Is the document<br>open in Word?}
+          B -- Yes --> C[Build a fresh copy<br>in the background]
+          C --> D[Swap only the changed<br>section into Word]
+          D --> E[Word renumbers fields<br>and saves]
+          E --> F([Your hand edits kept])
+          B -- No --> G{Edited by hand<br>since it was built?}
+          G -- No --> H([Rebuild the .docx])
+          G -- Yes --> I[Ask you first:<br>open in Word, or discard?]
+        """,
+        WORK / "live.png",
+    )
+    save(card(Image.open(WORK / "live.png"), 620), "live-editing.png")
+
+
 # --------------------------------------------------------------------------- galleries
 
 
@@ -305,6 +322,7 @@ if __name__ == "__main__":
     sample_pages()
     architecture()
     workflow()
+    live_editing()
     plots()
     circuits()
     diagrams()

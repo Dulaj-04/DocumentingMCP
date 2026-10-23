@@ -13,6 +13,10 @@ step by step, and this server lays everything out in the department's house styl
 <sub>Sample output for a placeholder student, built from <a href="examples/full_assignment.md"><code>examples/full_assignment.md</code></a>
 and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub>
 
+> **New in 1.1: live editing in Word.** Keep the document open in Word on Windows and ask for a
+> change: only that section is swapped in, and everything you typed by hand stays.
+> [How it works ↓](#8-change-part-of-a-document) · [Changelog](CHANGELOG.md)
+
 **Contents:** [Features](#features) · [How it works](#how-it-works) · [Gallery](#gallery) ·
 [Getting started](#getting-started-windows) · [How to use it](#how-to-use-it) · [Tools](#tools) ·
 [FAQ](#faq) · [For developers](#for-developers)
@@ -32,6 +36,7 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 | 📚 **IEEE references** | `[@key]` becomes [1], and the reference list is built for you. Look references up by DOI, ISBN or web link. |
 | 🔗 **Captions and cross-references** | "Figure 2", "Table 1" and "Eq. (3)" are live Word fields that update themselves. |
 | ✏️ **Edit, don't regenerate** | Change one question or section; everything else stays exactly as it was. |
+| 🪟 **Live editing in Word** | With the document open in Word (Windows), changes appear in the open window and your own hand edits are kept. A closed file you edited by hand is never overwritten without asking. |
 | 🔍 **Pre-submission check** | Spelling (British is fine), "5V"-style units, placeholders, empty sections, missing questions, page/word limits, **AI-sounding wording**, and similarity with your lecture notes. |
 | 🗂️ **Plain Word tables** | Black grid and a bold header, without the coloured "AI look" (a shaded style is optional). |
 
@@ -316,8 +321,40 @@ it needs approving again.
 
 > Change every "5V" to "5 V", remove the "Block Descriptions" part, and set the date to 20/05/2026.
 
-> Open it in Word. *(Windows: later changes then appear live in the open window, and your own hand
-> edits are kept.)*
+Only the part you name changes. The rest of the document stays exactly as it was.
+
+#### Editing while the document is open in Word
+
+<table>
+<tr>
+<td width="45%"><img src="docs/images/live-editing.png" alt="How a change is applied: live in Word, or by rebuilding"></td>
+<td>
+
+> Open it in Word.
+
+Leave it open, keep polishing it by hand, and ask for changes in the chat as usual. With desktop Word
+on Windows (2013, 2016, 2019, 2021, 2024 or Microsoft 365):
+
+- the changed section is built in the background and **swapped into the open window**;
+- Word renumbers figures, tables, equations and cross-references, then saves;
+- **anything you typed by hand elsewhere stays**;
+- the PDF is exported from the same window.
+
+If the file is closed and you have edited it by hand since it was generated, the AI **stops and asks
+you** whether to open it in Word (keeping your edits) or rebuild it (losing them).
+
+Changes to the whole document (cover details, border, page numbers) need the file closed.
+
+</td>
+</tr>
+</table>
+
+| What you ask for | Document open in Word | Document closed |
+|---|---|---|
+| Rewrite / add / remove a section | Applied live, hand edits kept | Rebuilt (asks first if you edited it by hand) |
+| Find and replace | Done by Word itself | Rebuilt (asks first if you edited it by hand) |
+| Cover, border, page numbers | Close the file first | Rebuilt |
+| Export PDF | From the open window | Word in the background (or LibreOffice) |
 
 ### 9. Check it, then get the PDF
 
@@ -346,6 +383,7 @@ before the PDF is made.
 - **Give your real results:** readings, screenshots and what went wrong in the lab. Only you know
   what actually happened.
 - **Treat the output as a strong first draft.** Read it, and make sure you can explain every line.
+- **Polish by hand with the file open in Word** (Windows), so later AI changes don't touch your edits.
 - **Keep the `.docx` and its `.docmcp.json` file together.** The JSON file is what lets the AI
   edit sections later.
 
@@ -425,7 +463,7 @@ src/documenting_mcp/
   plots.py, diagrams.py    graphs, diagrams, circuits figure_review.py  figure critique and approval
   references.py     IEEE references                   quality.py    pre-submission and similarity checks
   project.py        section editing                   ingest.py     briefs, notes, spreadsheets
-  export.py         PDF export (Word or LibreOffice)
+  export.py         PDF export (Word or LibreOffice)  live_word.py  live editing through Word's COM interface
 docs/style-spec.md  the measured house style
 examples/           sample documents (see examples/README.md)
 tests/              uv run pytest
