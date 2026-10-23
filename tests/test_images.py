@@ -173,3 +173,61 @@ def test_checker_flags_an_image_with_no_text(home):
     res = server.create_document(template="assignment", title="T", body_markdown="# Q1\n\nText.\n\n![](bench.jpg)\n", filename="chk")
     report = server.check_document(res["docx"])
     assert any("no text under it" in i["message"] for i in report["issues"])
+
+
+# --------------------------------------------------------------------------- sizing
+
+
+from kdocs_mcp import images as image_library  # noqa: E402
+
+
+def test_big_photos_are_held_back_and_big_screenshots_are_shown_wide():
+    w, notes = image_library.fit_size(4000, 3000, ".jpg", 6.7)
+    assert w <= 6.7 * 0.62 + 0.01 and w * 3000 / 4000 <= image_library.MAX_H_LANDSCAPE and not notes
+    w, _ = image_library.fit_size(1920, 1080, ".png", 6.7)
+    assert w > 6.0  # text in a screenshot must stay readable
+    w, _ = image_library.fit_size(3000, 4000, ".jpg", 6.7)  # portrait phone photo
+    assert w * 4000 / 3000 <= image_library.MAX_H_PORTRAIT + 0.01
+
+
+def test_nothing_is_taller_than_half_a_page_whatever_the_shape():
+    for size in ((900, 5000), (1080, 2400), (5000, 900), (2000, 2000)):
+        w, _ = image_library.fit_size(*size, ".png", 6.7)
+        assert w * size[1] / size[0] <= image_library.MAX_H_PORTRAIT + 0.05 + (0.4 if size[0] > size[1] else 0)
+
+
+def test_small_images_are_not_blown_up_and_are_flagged():
+    w, notes = image_library.fit_size(300, 200, ".png", 6.7)
+    assert w <= 3.3 and notes and "Low resolution" in notes[0]
+    w, notes = image_library.fit_size(120, 80, ".png", 6.7)
+    assert w <= 3.3 and any("Very small" in n for n in notes)
+    w, notes = image_library.fit_size(800, 500, ".png", 6.7)
+    assert w >= 5.0 and not notes  # enough pixels to be shown large
+
+
+def test_size_words_and_explicit_widths_stay_within_the_limits():
+    w, _ = image_library.fit_size(3000, 2000, ".jpg", 6.7, share=image_library.SIZE_WORDS["small"])
+    assert w >= 3.0  # "small" still has to be readable
+    w, _ = image_library.fit_size(3000, 2000, ".jpg", 6.7, share=1.0)
+    assert w <= 6.7
+
+
+def test_list_images_reports_how_each_would_be_shown(home):
+    src = _photos(home / "phone")
+    server.import_images([str(f) for f in src], names=["a", "b", "c"])
+    first = server.list_images()["images"][0]
+    assert first["shown_width_in"] > 0 and first["shown_height_in"] > 0
+
+
+def test_oversized_and_low_resolution_images_produce_warnings(home):
+    from PIL import Image as PI
+
+    PI.new("RGB", (300, 200), "white").save(home / "tiny.png")
+    PI.new("RGB", (900, 5000), "white").save(home / "tall.png")
+    md = "# Q1\n\nText.\n\n![A tiny one](tiny.png)\n\n![A tall one](tall.png){width=6in}\n"
+    res = server.create_document(template="assignment", title="T", body_markdown=md, assets_dir=str(home), filename="sz")
+    joined = " ".join(res["warnings"])
+    assert "Low resolution" in joined and "taller than half a page" in joined
+    d = docx.Document(res["docx"])
+    heights = [s.height / 914400 for s in d.inline_shapes][1:]  # skip the cover crest
+    assert max(heights) <= image_library.MAX_H_PORTRAIT + 0.05

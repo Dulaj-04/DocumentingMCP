@@ -1161,30 +1161,43 @@ class ReportBuilder:
                 if im.getexif().get(0x0112, 1) in (1, None):
                     return path
                 fixed = ImageOps.exif_transpose(im)
-                out = Path(self._tmp.name) / f"{len(list(Path(self._tmp.name).iterdir()))}_{path.stem}.png"
-                fixed.save(out)
+                out = Path(self._tmp.name) / f"{len(list(Path(self._tmp.name).iterdir()))}_{path.stem}{path.suffix.lower()}"
+                fixed.convert("RGB").save(out) if out.suffix in (".jpg", ".jpeg") else fixed.save(out)
                 return out
         except Exception:
             return path
 
-    def _img_width(self, path: Path, kvs, inline: bool = False):
+    def _img_width(self, path: Path, kvs, inline: bool = False, smart: bool = False):
         attrs = dict(kvs)
         width = attrs.get("width")
+        share = None
         if width:
-            m = re.fullmatch(r"\s*([\d.]+)\s*(%|in|cm|mm|px)?\s*", width)
-            if m:
-                val, unit = float(m.group(1)), m.group(2) or "px"
-                inches = {
-                    "%": FIGURE_W * val / 100,
-                    "in": val,
-                    "cm": val / 2.54,
-                    "mm": val / 25.4,
-                    "px": val / 96,
-                }[unit]
-                return Inches(min(inches, CONTENT_W))
+            from .images import SIZE_WORDS
+
+            word = width.strip().lower()
+            if word in SIZE_WORDS:
+                share = SIZE_WORDS[word]
+            else:
+                m = re.fullmatch(r"\s*([\d.]+)\s*(%|in|cm|mm|px)?\s*", width)
+                if m:
+                    val, unit = float(m.group(1)), m.group(2) or "px"
+                    if unit == "%":
+                        share = val / 100
+                    else:
+                        inches = {"in": val, "cm": val / 2.54, "mm": val / 25.4, "px": val / 96}[unit]
+                        return Inches(self._limit_height(path, min(inches, CONTENT_W), width, smart))
         with PILImage.open(path) as im:
             w_px, h_px = im.size
             dpi = im.info.get("dpi", (96, 96))[0] or 96
+        if smart:
+            from .images import fit_size
+
+            w_in, notes = fit_size(w_px, h_px, path.suffix, FIGURE_W, share)
+            for n in notes:
+                self.warnings.append(f"{path.name}: {n}")
+            return Inches(w_in)
+        if share is not None:
+            return Inches(min(FIGURE_W * share, CONTENT_W))
         w_in, h_in = w_px / dpi, h_px / dpi
         if inline:
             return Inches(min(w_in, 1.5))
@@ -1193,6 +1206,21 @@ class ReportBuilder:
         if w_in * scale < FIGURE_W * 0.5:
             scale = min(FIGURE_W * 0.5 / w_in, MAX_IMG_H / h_in)
         return Inches(w_in * scale)
+
+    def _limit_height(self, path: Path, width_in: float, asked, smart: bool) -> float:
+        """An explicit width is respected unless the picture would then be taller than half a page."""
+        if not smart:
+            return width_in
+        from .images import MAX_H_LANDSCAPE, MAX_H_PORTRAIT
+
+        with PILImage.open(path) as im:
+            w_px, h_px = im.size
+        max_h = MAX_H_PORTRAIT if w_px < h_px * 0.95 else MAX_H_LANDSCAPE
+        if width_in * h_px / w_px > max_h:
+            fitted = max_h * w_px / h_px
+            self.warnings.append(f"{path.name}: width {asked} would make it taller than half a page; shown at {fitted:.1f} in wide instead.")
+            return fitted
+        return width_in
 
     def _figure(self, container, c) -> None:
         _attr, caption, body = c
@@ -1218,7 +1246,7 @@ class ReportBuilder:
         p.paragraph_format.space_before = Pt(6)
         p.paragraph_format.space_after = Pt(6)
         p.paragraph_format.keep_with_next = number is not None
-        p.add_run().add_picture(str(path), width=self._img_width(path, attr[2]))
+        p.add_run().add_picture(str(path), width=self._img_width(path, attr[2], smart=True))
         if number is not None:
             self._caption(container, "Figure", number, attr[0], caption)
         elif _plain_text(caption).strip():
@@ -1281,6 +1309,14 @@ class ReportBuilder:
                     with PILImage.open(path) as im:
                         aspect = im.size[0] / im.size[1]
                     p.add_run().add_picture(str(path), width=Inches(min(common * aspect, usable)))
+                shown_w = p.runs[-1].element.xpath(".//wp:extent")[0].get("cx")
+                shown_in = int(shown_w) / 914400
+                with PILImage.open(path) as im_:
+                    px_w = im_.size[0]
+                if px_w / shown_in < 110:
+                    self.warnings.append(f"{path.name}: low resolution at this size in a row (about {px_w / shown_in:.0f} dpi); it will look soft.")
+                elif shown_in < 2.3 and path.suffix.lower() == ".png" and px_w >= 900:
+                    self.warnings.append(f"{path.name}: shown only {shown_in:.1f} in wide in a row, so small text in it may be unreadable. Use two images per row, or one on its own.")
                 sub = _plain_text(img["c"][1]).strip()
                 if sub:
                     sp = cell.add_paragraph()

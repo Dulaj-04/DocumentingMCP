@@ -149,7 +149,7 @@ def list_library(project: str = "") -> dict:
     for f in sorted(root.rglob("*")):
         if f.is_file() and f.suffix.lower() in IMAGE_EXT:
             entry = index.get(_key(f), {})
-            images.append({"path": _key(f), **info(f), "description": entry.get("description", ""),
+            images.append({"path": _key(f), **info(f), **sizing_for(f), "description": entry.get("description", ""),
                            "tags": entry.get("tags", [])})
         if len(images) >= 300:
             break
@@ -291,3 +291,65 @@ def suggest_placement(body_markdown: str, project: str = "", max_per_section: in
         "how_to_use": "Check each match yourself. Place an image only where the text refers to what it shows, and "
         "ask the student about unmatched ones. Use place_image to insert, then refer to it in the text.",
     }
+
+
+# --------------------------------------------------------------------------- sizing
+
+MIN_DPI = 110  # below this a picture looks soft when printed
+MAX_H_LANDSCAPE = 5.0  # inches; keeps an image from taking over a page
+MAX_H_PORTRAIT = 4.6
+MAX_H_SQUARE = 4.2
+SIZE_WORDS = {"small": 0.35, "medium": 0.6, "large": 0.8, "full": 1.0}  # share of the figure width
+
+
+def fit_size(w_px: int, h_px: int, ext: str, max_w: float, share: float | None = None) -> tuple[float, list[str]]:
+    """Width in inches for one image placed on its own, and notes about its quality.
+
+    Too small and detail is lost; too large and the layout breaks. So:
+    - screenshots, diagrams and graphs (png, gif, bmp) are shown wide enough to read their text;
+    - photos (jpeg) are shown smaller, and portrait or square ones are limited by height;
+    - nothing is enlarged past MIN_DPI, since that only makes it blurry;
+    - nothing is taller than about half a page.
+    share: a fraction of max_w asked for by the author; it is still held inside the limits.
+    """
+    notes: list[str] = []
+    aspect = w_px / h_px
+    photo = ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff")
+    max_h = MAX_H_PORTRAIT if aspect < 0.95 else MAX_H_SQUARE if aspect < 1.2 else MAX_H_LANDSCAPE
+    if share is not None:
+        width = max_w * share
+    elif photo:
+        width = max_w * (0.62 if aspect >= 1.15 else 0.5)
+    else:
+        width = max_w * (0.95 if aspect >= 1.2 else 0.75 if aspect >= 0.95 else 0.5)
+        if w_px < 700:
+            width = min(width, w_px / 100)  # small screenshot: natural size, not blown up
+    # a screenshot or photo that is too small to read gets a sensible floor
+    floor = (3.2 if photo else 4.2) if aspect >= 0.95 else 2.6
+    width = max(width, min(floor, max_w))
+    width = min(width, max_w, max_h * aspect)
+    sharp = w_px / MIN_DPI
+    if width > sharp:
+        if sharp >= floor * 0.75:
+            width = sharp
+        else:
+            width = max(sharp, floor * 0.75)
+            notes.append(
+                f"Low resolution ({w_px}x{h_px} px): at {width:.1f} in wide it would be about {w_px / width:.0f} dpi, "
+                "so it will look soft and fine detail will be lost. Ask for a larger original or a screenshot at full size."
+            )
+    if min(w_px, h_px) < 250:
+        notes.append("Very small image: there is little detail to show, so it is kept at a modest size.")
+        width = min(width, max(w_px / 150, 1.2))
+    return round(width, 2), notes
+
+
+def sizing_for(path: Path, max_w: float = 6.7) -> dict:
+    """What the report would do with this image, for list_images / place_image."""
+    try:
+        with PILImage.open(path) as im:
+            w, h = im.size
+    except Exception:
+        return {}
+    width, notes = fit_size(w, h, path.suffix, max_w)
+    return {"shown_width_in": width, "shown_height_in": round(width * h / w, 2), "sizing_notes": notes}

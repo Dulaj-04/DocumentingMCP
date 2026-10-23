@@ -302,6 +302,20 @@ Result → Discussion → Conclusion.
 
 > Rename the second photo to "dac-output-5v" and update the report.
 
+**Sizing: not too small, not too large.** Each image is sized for what it is:
+
+| Image | Shown as |
+|---|---|
+| Screenshot, graph or diagram | Wide (about 95% of the text width), so small text stays readable |
+| Landscape photo | About 60% of the width |
+| Portrait or square photo | Limited by height, so it never takes over the page |
+| Anything | Never taller than about half a page, and never enlarged until it turns blurry |
+| Low-resolution image | Kept at a sensible size and **flagged**, so you can supply a bigger original |
+
+You can also ask for a size: `{width=small|medium|large|full}` or a percentage. An over-tall size
+is reduced automatically and reported. In a side-by-side row, a warning appears if a screenshot is
+too small to read, and the AI is told to use two per row instead of three.
+
 Your original files are never moved or deleted. Reports find images by file name, so one image can be
 used in several places.
 

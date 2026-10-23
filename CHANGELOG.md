@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0
+
+**Image sizing**
+- Images are sized by what they are: screenshots, graphs and diagrams wide enough to read; photos
+  smaller; portrait and square images limited by height; nothing taller than about half a page.
+- Nothing is enlarged past about 110 dpi. Low-resolution images are kept at a sensible size and
+  reported, and so are rows where an image is too small to read.
+- `{width=small|medium|large|full}` as well as percentages and units; an over-tall request is reduced
+  and reported.
+- `list_images` shows how each image would be displayed and any sizing notes.
+- Phone photos keep their JPEG type after being turned upright.
+
 ## 1.4.0
 
 **Using images where they fit**

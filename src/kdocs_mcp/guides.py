@@ -168,6 +168,23 @@ they made a folder, save it once with `set_profile(image_dir=...)`; every image 
    side by side. Two or three per row; portrait phone photos suit a row of two. Everything else is one
    image per place, centred and sized to fit.
 
+**Size it properly**
+- Do not leave sizing to chance. `list_images` shows how each image will be displayed (`shown_width_in`,
+  `shown_height_in`) and any `sizing_notes`. Read them.
+- Too small and the detail is lost; too large and the layout breaks. The default does this: screenshots,
+  graphs and diagrams are shown wide so their text stays readable; photos are smaller; portrait and
+  square images are limited by height; nothing is taller than about half a page; nothing is enlarged
+  until it goes blurry.
+- You may ask for a size with `{width=small|medium|large|full}` or `{width=60%}`. Choose by purpose:
+  `full` for a screenshot whose small text matters, `large` for a circuit or graph, `medium` for a
+  photo of a setup, `small` only for a simple icon-like image. Overly tall results are reduced
+  automatically and reported.
+- If a note says "Low resolution", tell the student. Ask for a larger original or a full-size
+  screenshot. Never enlarge it to hide the problem.
+- In a side-by-side row, each image gets a third or half of the width. Use two per row for screenshots
+  with text; three is for simple pictures. Heed any warning that a row image is too small to read.
+- After building, read `warnings` in the result. Fix every sizing warning before showing the student.
+
 **Text under every image**
 8. Every image carries a small line saying what it shows: `![Oscilloscope trace at 1 kHz](scope-1khz.png)`.
    One sentence, plain, no "this image shows". In a row each image gets (a), (b) and the row shares one
