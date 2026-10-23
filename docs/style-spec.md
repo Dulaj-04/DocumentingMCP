@@ -56,7 +56,10 @@ Top to bottom, everything centered unless noted:
 
 ## 4. Lab report structure (`lab_report`)
 
-**Page 2 lab header block** (comes right after the cover):
+**Lab header block: not required.** The user confirmed that the page-2 block below (banner, lab title
+line, Reg No and name, and the info box) is not a necessary part. The lab report goes straight from
+the cover to `AIM`. We record the block here for reference only. It may be added later as an opt-in
+(`include_lab_header=False` by default).
 
 - A two-cell banner, full width, with top and bottom rules:
   - Left cell: small crest (about 1 in).
