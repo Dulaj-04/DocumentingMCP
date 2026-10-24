@@ -164,6 +164,23 @@ def check_document(
         except Exception:
             pass
 
+    # A first-hand report talks about what was done and seen, not about the student's notes or evidence files
+    meta = re.findall(r"\b(?:the|my|our|visit|handwritten)\s+(?:notes?|notebook|evidence(?: register)?|register)\s+"
+                      r"(?:say|says|said|suggest|suggests|record|records|recorded|mention|mentions|identify|identifies|"
+                      r"associate|associates|indicate|indicates|state|states|show|shows|note|notes)\b"
+                      r"|\baccording to the (?:notes?|notebook|evidence)\b|\bthe photographed (?:plate|motor|panel|nameplate)\b"
+                      r"|\bphotograph(?:s)? (?:show|shows|confirm|confirms|identif(?:y|ies))\b", text, re.I)
+    if meta:
+        add("warning", meta[0][:40], f"Writes about the notes/photos instead of what was seen ({len(meta)} place(s), e.g. "
+            f"'{meta[0]}'). Write it first-hand: 'it was observed that...', 'the nameplate showed...', "
+            "'the engineers explained that...'.")
+    hedges = re.findall(r"\b(?:does|do|did) not (?:establish|prove|confirm|demonstrate|imply)\b|\bwas not established\b"
+                        r"|\bcannot be (?:verified|confirmed|established|reconstructed)\b|\bshould not be (?:presented|confused|inferred|treated)\b"
+                        r"|\bnot (?:a|an) (?:verified|measured|demonstrated)\b|\bremains (?:unverified|provisional)\b", text, re.I)
+    if len(hedges) >= 4 and len(hedges) * 1000 / max(total_words, 1) > 2:
+        add("warning", "tone", f"Too many disclaimers ({len(hedges)}, e.g. '{hedges[0]}'). A report states what was found; say "
+            "once, plainly, what could not be confirmed, and ask the student about the rest.")
+
     # Internal photo codes (P75, IMG_2041) mean nothing to a reader: show the photo as a figure instead
     codes = re.findall(r"\b(?:photo(?:graph)?s?|plates?|notes?|images?|pictures?)\s+(P\d{1,3})\b|\b(IMG[_-]\d{3,})\b", text, re.I)
     codes = sorted({a or b for a, b in codes})

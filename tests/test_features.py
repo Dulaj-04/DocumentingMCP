@@ -382,3 +382,23 @@ def test_group_cover_and_department(home):
     cover_table = d.tables[0]
     assert [c.text for c in cover_table.rows[0].cells] == ["No.", "Name", "Reg No"]
     assert cover_table.cell(5, 2).text == "D/ENG/EE/25/0005"
+
+
+def test_first_hand_voice_checks(home):
+    notes_style = ("# Observations\n\nThe notes record that the pump was started direct-on-line. According to the notes, "
+                   "three pumps are installed. The photographed plate gives 1120 kW. This does not establish the starter. "
+                   "It was not established which relay was used. The value cannot be verified. This should not be presented "
+                   "as a measurement. The data does not prove anything.\n")
+    res = server.create_document(template="lab_report", title="T", body_markdown=notes_style, filename="voice1")
+    msgs = " ".join(i["message"] for i in server.check_document(res["docx"])["issues"])
+    assert "instead of what was seen" in msgs and "Too many disclaimers" in msgs
+    first_hand = ("# Observations\n\nThe pump was started direct-on-line. The plant engineers explained that three pumps are "
+                  "installed. The nameplate showed a rated output of 1120 kW. The starter type could not be confirmed during the visit.\n")
+    res = server.create_document(template="lab_report", title="T", body_markdown=first_hand, filename="voice2")
+    msgs = " ".join(i["message"] for i in server.check_document(res["docx"])["issues"])
+    assert "instead of what was seen" not in msgs and "Too many disclaimers" not in msgs
+
+
+def test_writing_guide_has_first_hand_rules():
+    guide = server.get_writing_guide("lab_report")
+    assert "first-hand" in guide and "The nameplate showed" in guide and "Never invent an observation" in guide

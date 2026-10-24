@@ -39,6 +39,7 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 | 🔗 **Captions and cross-references** | "Figure 2", "Table 1" and "Eq. (3)" are live Word fields that update themselves. |
 | ✏️ **Edit, don't regenerate** | Change one question or section; everything else stays exactly as it was. |
 | 🪟 **Live editing in Word** | With the document open in Word (Windows), changes appear in the open window and your own hand edits are kept. A closed file you edited by hand is never overwritten without asking. |
+| 🗣️ **First-hand voice** | Lab and visit reports read as something you did and saw ("the readings ranged from…", "it was observed that…", "the engineers explained…"), never "the notes say…", and without a disclaimer on every paragraph. |
 | 🔍 **Pre-submission check** | Spelling (British is fine), "5V"-style units, placeholders, empty sections, missing questions, page/word limits, **AI-sounding wording**, and similarity with your lecture notes. |
 | 🏷️ **Equipment profiles** | For reports about specific equipment: each item gets a sub-section with its data as points and its own photos right there, then the discussion. Optional, not forced on every report. |
 | 🖼️ **Smart image use** | Works from your own image folder in Downloads. It decides which images are worth including, where each belongs, how large it should be, and adds a line of text under it. Side by side at matching heights when they belong together. |
@@ -491,6 +492,30 @@ before the PDF is made.
 | "number all the equations" | (1), (2), … on the right |
 | "caption every figure" | "Figure n: …" under every picture |
 | "use coloured tables" | Navy header with shaded rows |
+
+### How lab and visit reports are written
+
+A practical or visit report is your first-hand account, so it's written the way a student who was
+there would write it, not as a summary of your notes:
+
+| Not like this | Like this |
+|---|---|
+| The notes record that the pump was started DOL. | The pump was started direct-on-line. |
+| According to the notes, the engineers said there are 3 pumps. | The plant engineers explained that three pumps are installed. |
+| The photographed plate gives 1120 kW. | The nameplate showed a rated output of 1120 kW (Figure 2). |
+| This does not establish the starter type. *(on every paragraph)* | The starter type could not be confirmed during the visit. *(once, where it matters)* |
+
+- **Procedure:** numbered past-tense steps ("The dimensions of the room were measured and recorded.").
+- **Results:** the values and what was seen ("The readings ranged from 110 lx to 560 lx… Considerable
+  variation was observed…").
+- **Discussion:** what the results mean ("These results indicate…"), then likely reasons ("may have been
+  influenced by…").
+- **Conclusion:** a past-tense summary with the key numbers and recommendations.
+
+Honesty still comes first. "Was observed" is used only for what you actually saw or measured. What
+someone told you is written as "the engineers explained", and the AI's own reasoning as "this suggests".
+If the AI can't tell which a note is, it asks you. The pre-submission check flags note-talk ("the notes
+say…") and paragraphs full of disclaimers.
 
 ### Tips for a good result
 

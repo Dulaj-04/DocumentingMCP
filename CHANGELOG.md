@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.0
+
+**First-hand voice for lab and visit reports**
+- Writing guide: write as the student who did the work: past-tense procedure, results stated with values
+  ("it was observed that…", "the nameplate showed…", "the engineers explained that…"), discussion that
+  says what the results indicate and the likely reasons, and a past-tense conclusion. Observations are
+  never invented: what was said, what was seen and what is inferred stay distinct.
+- Check: flags note-talk ("the notes record…", "according to the notes", "the photographed plate…") and
+  reports with a disclaimer in almost every paragraph.
+
 ## 1.7.0
 
 **Equipment profiles**

@@ -290,6 +290,50 @@ AI-style writing, so follow these rules strictly:
   demonstrated robust communication".
 - **British spelling,** as used in Sri Lanka: initialise, analyse, behaviour, colour, centre, modelled.
 - Run `check_document`. It flags AI-style wording, and those flags must be rewritten.
+
+## Write it as something the student did and saw (labs, visits, practicals)
+
+A lab or visit report is a first-hand account. The student was there: they measured, inspected,
+recorded and were told things. Write it that way. Never write about the student's notes, photos or
+evidence files as if they were someone else's document.
+
+| Do not write | Write |
+|---|---|
+| The notes say / suggest / record that the pump was started DOL | The pump was started direct-on-line. |
+| The notebook mentions vibration monitors on the motor | Vibration monitors were observed on the motor. |
+| According to the notes, the engineers said the plant has 3 pumps | The plant engineers explained that three pumps are installed. |
+| The photographed plate gives 1120 kW | The nameplate showed a rated output of 1120 kW (Figure 2). |
+| The evidence does not establish the starter type | The starter type could not be confirmed during the visit. (once, only if it matters) |
+| Photograph P74 shows a corroded nameplate | Several nameplates were badly corroded and could not be read (Figure 7). |
+
+How each part is usually written:
+- **Procedure / method:** numbered steps in past tense: "The dimensions of the room were measured and
+  recorded." "The existing installation was inspected, and the number, type and wattage of the
+  luminaires were identified."
+- **Observations / results:** state what was found, with the values: "The readings ranged from 110 lx
+  to 560 lx, giving an average of 224.5 lx. Considerable variation was observed between the points.
+  The highest reading was recorded at ..." For a visit: "It was observed that ...", "The nameplate
+  showed ...", "The engineers explained that ...".
+- **Calculations:** "The average of the eight measured values was calculated:" then the working.
+- **Discussion:** results first, then what they mean, then likely reasons: "These results indicate
+  that ...", "The low uniformity ratio suggests that ...", "The difference may have been influenced by
+  daylight entering through the windows and ..."
+- **Recommendations:** "... should be evaluated", "... could be considered if further assessment
+  confirms that ..."
+- **Conclusion:** past tense summary with the key numbers: "The lighting conditions were evaluated
+  using ... The average was calculated as ... The installation was found to be inadequate according to
+  ... It was concluded that ... Additional measurements were recommended."
+- **Theory:** general facts in the present tense, as in a textbook.
+
+Hedging: one "may have" or "suggests" where the cause is genuinely uncertain is normal. Do not end
+every paragraph with a disclaimer ("this does not prove...", "this is not a verified..."). If something
+is unknown, ask the student before writing. If it is still unknown, say so once, plainly, where it
+matters.
+
+Honesty still applies: "was observed" is only for things the student actually saw, measured or was
+told. What the engineers said is "the engineers explained". Your own reasoning is "this suggests" or
+"this is likely because". If you cannot tell whether something in the notes was seen, said by someone
+or guessed, ask the student. Never invent an observation.
 """
 
 GUIDES = {
