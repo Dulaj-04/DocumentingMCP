@@ -114,7 +114,8 @@ def _blocks(markdown: str) -> list[tuple[str, str, int]]:
         if s.startswith("```"):
             flush()
             lang = s[3:].strip().lower().split("{")[0].strip()
-            fence = ("visual" if lang in ("plot", "diagram", "circuit") else "code", [], i)
+            kind = "visual" if lang in ("plot", "diagram", "circuit") else "profile" if lang.lstrip(".") in ("profile", "equipment") else "code"
+            fence = (kind, [], i)
             continue
         if not s:
             flush()
@@ -207,6 +208,11 @@ def crowding(markdown: str) -> list[dict]:
             close_section()
             sec, sec_words, sec_imgs, since_img_words, last_img = text, 0, 0, None, None
             continue
+        if kind == "profile":
+            sec_words += _words(text)
+            sec_imgs += 1
+            last_img, since_img_words = text, 0
+            continue
         if kind == "image":
             sec_imgs += 1
             if last_img is not None and since_img_words is not None and since_img_words < 25:
@@ -248,6 +254,8 @@ def layout_notes(markdown: str) -> list[dict]:
             h = 0.6
         elif kind == "visual":
             h = 3.7
+        elif kind == "profile":
+            h = max(len(re.findall(r"^\s*-?\s*[^\n:]+:", text, re.M)) * 0.22, 3.2) + 0.5
         else:  # image
             h, _row, _n = _image_heights(text)
             lead = prev_h if prev_para else 0.0  # the sentence introducing the image travels with it

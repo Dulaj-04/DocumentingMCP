@@ -336,3 +336,78 @@ def test_page_gap_estimate_notices_an_image_that_cannot_fit(home):
     md = f"# Results\n\n{filler}\n\n![Wide](wide.png)\n"
     assert any("blank at the bottom" in n["message"] for n in image_plan.layout_notes(md))
     assert not image_plan.layout_notes("# Results\n\nShort.\n\n![Wide](wide.png)\n")
+
+
+# --------------------------------------------------------------------------- equipment profiles
+
+
+PROFILE = """# Applications
+
+## Main cooling water pump motor: TECO 1120 kW, 10-pole
+
+```profile
+label: teco
+caption: TECO 1120 kW cooling water pump motor
+data:
+  - Rated output: 1120 kW
+  - Supply: 6.6 kV, 50 Hz, 134 A
+images:
+  - file: plate.jpg
+    caption: Nameplate
+```
+
+As @fig:teco shows, it is a 10-pole machine.
+
+## Boiler feed pump motor
+
+```profile
+data:
+  Rated output: 2300 kW
+images:
+  - file: a.jpg
+    caption: Motor
+  - file: b.jpg
+    caption: Panel
+```
+"""
+
+
+def test_profile_puts_data_points_and_photos_together(home):
+    src = _photos(home / "phone")
+    server.import_images([str(src[0]), str(src[0]), str(src[1])], names=["plate", "a", "b"])
+    res = server.create_document(template="assignment", title="T", body_markdown=PROFILE, filename="prof")
+    assert not res["warnings"], res["warnings"]
+    d = docx.Document(res["docx"])
+    beside = d.tables[0]  # first profile: data on the left, photo on the right
+    assert "Rated output: 1120 kW" in beside.cell(0, 0).text and "Supply:" in beside.cell(0, 0).text
+    assert beside._tbl.xpath(".//wp:extent") and "Nameplate" in beside.cell(0, 1).text
+    text = "\n".join(p.text for p in d.paragraphs)
+    assert "Figure 1: TECO 1120 kW cooling water pump motor" in text and "As Figure 1 shows" in text
+    row = d.tables[1]  # second profile: two photos in a row under the data
+    assert "(a) Motor" in row.cell(0, 0).text and "(b) Panel" in row.cell(0, 1).text
+    assert "Rated output: 2300 kW" in text
+
+
+def test_profile_images_count_as_used(home):
+    src = _photos(home / "phone")
+    server.import_images([str(src[0]), str(src[0]), str(src[1])], names=["plate", "a", "b"])
+    from kdocs_mcp import images as lib
+
+    assert {"plate.jpg", "a.jpg", "b.jpg"} <= lib.referenced_images(PROFILE)
+    assert set(server.suggest_image_placement(body_markdown=PROFILE)["already_in_report"]) == {"plate.jpg", "a.jpg", "b.jpg"}
+
+
+def test_missing_photos_and_photo_codes_are_flagged(home):
+    from kdocs_mcp import planning
+
+    plan = planning.new_plan("visit report")
+    plan.requirements["include_photos_screenshots"] = True
+    plan.requirements["equipment_profiles"] = True
+    plan.status = "approved"
+    planning.save(plan)
+    md = "# Applications\n\nThe plate in photograph P75 gives 1120 kW, and notes P03 agree.\n"
+    res = server.create_document(template="assignment", title="T", body_markdown=md, filename="np", plan_id=plan.id)
+    report = server.check_document(res["docx"])
+    msgs = " ".join(i["message"] for i in report["issues"])
+    assert "uses none" in msgs and "internal codes" in msgs and "profile" in msgs
+    assert not report["summary"]["ready_to_submit"]

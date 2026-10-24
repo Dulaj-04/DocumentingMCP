@@ -1332,6 +1332,18 @@ def check_document(
                         "message": f"'{t['title']}' was ticked 'get my input here' but no input from the student was recorded."})
                     report["summary"]["errors"] += 1
                     report["summary"]["ready_to_submit"] = False
+            used = image_library.referenced_images(markdown)
+            if plan.requirements.get("include_photos_screenshots") and not used:
+                report["issues"].insert(0, {"severity": "error", "where": "images",
+                    "message": "The plan says to include the student's photos/screenshots, but the report uses none. "
+                    "Run suggest_image_placement and place the relevant ones (preview, then confirm with the student)."})
+                report["summary"]["errors"] += 1
+                report["summary"]["ready_to_submit"] = False
+            if plan.requirements.get("equipment_profiles") and not re.search(r"```\s*\{?\.?(profile|equipment)", markdown):
+                report["issues"].insert(0, {"severity": "warning", "where": "layout",
+                    "message": "The plan asks for one sub-section per item with its data as points and its photos "
+                    "(```profile blocks), but the report has none."})
+                report["summary"]["warnings"] = report["summary"].get("warnings", 0) + 1
         except FileNotFoundError:
             pass
     return report

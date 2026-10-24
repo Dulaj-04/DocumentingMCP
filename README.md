@@ -40,6 +40,7 @@ and rendered with LibreOffice. In Word, the cover uses Aptos and Agency FB.</sub
 | ✏️ **Edit, don't regenerate** | Change one question or section; everything else stays exactly as it was. |
 | 🪟 **Live editing in Word** | With the document open in Word (Windows), changes appear in the open window and your own hand edits are kept. A closed file you edited by hand is never overwritten without asking. |
 | 🔍 **Pre-submission check** | Spelling (British is fine), "5V"-style units, placeholders, empty sections, missing questions, page/word limits, **AI-sounding wording**, and similarity with your lecture notes. |
+| 🏷️ **Equipment profiles** | For reports about specific equipment: each item gets a sub-section with its data as points and its own photos right there, then the discussion. Optional, not forced on every report. |
 | 🖼️ **Smart image use** | Works from your own image folder in Downloads. It decides which images are worth including, where each belongs, how large it should be, and adds a line of text under it. Side by side at matching heights when they belong together. |
 | 🗂️ **Plain Word tables** | Black grid and a bold header, without the coloured "AI look" (a shaded style is optional). |
 
@@ -312,6 +313,26 @@ Result → Discussion → Conclusion.
 > Put the two scope screenshots side by side under Observations.
 
 > Rename the second photo to "dac-output-5v" and update the report.
+
+**Equipment profiles: one item, its data, its photos, right there.** When a report is about specific
+equipment you saw or used (each motor at a plant visit, instruments on a lab bench), you can ask for
+each item to get its own sub-section:
+
+1. a heading that names the item and its job;
+2. its data as points (from the nameplate or datasheet), with **its own photos right beside or under them**
+   as one numbered figure;
+3. then the discussion of that item.
+
+<p align="center"><img src="docs/images/equipment-profile.png" width="640" alt="Two motor profiles: data points with the nameplate photo beside them, and data points with two photos underneath"></p>
+
+<sub>One photo sits beside the data; two or three sit in a row under it. Placeholder data and pictures.</sub>
+
+This layout is optional. It isn't used for theory sections or for every report. The AI asks whether you
+want it when your material is about specific equipment, and it never puts a photo of one machine in
+another machine's profile.
+
+> For section 2, give each motor its own part: name it, list its nameplate data as points, put its
+> nameplate and installed photos right there, then discuss it.
 
 **Several images at once: planned together, confirmed by you.** When a report has many images the AI
 plans them as a set instead of dropping them in one by one.

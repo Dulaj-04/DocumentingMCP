@@ -164,6 +164,13 @@ def check_document(
         except Exception:
             pass
 
+    # Internal photo codes (P75, IMG_2041) mean nothing to a reader: show the photo as a figure instead
+    codes = re.findall(r"\b(?:photo(?:graph)?s?|plates?|notes?|images?|pictures?)\s+(P\d{1,3})\b|\b(IMG[_-]\d{3,})\b", text, re.I)
+    codes = sorted({a or b for a, b in codes})
+    if codes:
+        add("warning", ", ".join(codes[:6]), "The text refers to photos by internal codes (" + ", ".join(codes[:6]) + "). A reader "
+            "cannot see these: include the photo as a numbered figure and refer to 'Figure n' instead.")
+
     # Spelling: known typos first, then a dictionary pass
     lower_counts = Counter(w.lower().strip("'’-") for w in words)
     for typo, fix in COMMON_TYPOS.items():

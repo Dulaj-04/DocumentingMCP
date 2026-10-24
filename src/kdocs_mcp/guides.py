@@ -139,6 +139,44 @@ later makes it pending again.
 - If a tool reports `manual_edits_detected`, the student changed the file in Word. Ask them whether to
   open it in Word (edits kept) or discard their edits; only then repeat with `overwrite_manual_edits=true`.
 
+## Equipment profiles (when a report is about specific equipment)
+
+Use this only where a section discusses particular, named items the student saw or used: motors at a
+plant visit, instruments on a lab bench, a PLC, a transformer. It is not for theory sections and not
+for every report. If the brief or the student's material is about specific equipment, ask the student
+whether they want this layout (the `equipment_profiles` requirement), and follow their answer.
+
+Each item gets its own sub-section:
+1. A heading that names the item and its job: `## Main cooling water pump motor: TECO 1120 kW, 10-pole`.
+2. A ```profile block with its data as points and its photos right there:
+
+```profile
+label: teco1120
+caption: TECO 1120 kW main cooling water pump motor
+data:
+  - Rated output: 1120 kW
+  - Supply: 6.6 kV, 50 Hz, 134 A
+  - Speed: 594 rpm (10 poles)
+images:
+  - file: teco-1120kw-nameplate.jpeg
+    caption: Nameplate
+  - file: teco-1120kw-installed.jpeg
+    caption: Installed motor
+```
+
+   - data: the facts from the nameplate or datasheet, one per point, with units. Only values the student
+     has (mark unclear ones as such and ask them).
+   - images: 1 to 3 photos of this item (nameplate, the installed machine, its panel), from the image
+     library. One photo goes beside the data; two or three go in a row under it. `layout: beside` or
+     `layout: below` forces either.
+   - caption + label make it one numbered figure that the text refers to with `@fig:teco1120`.
+3. Then the discussion of that item in normal paragraphs: what it drives, why this type suits the duty,
+   how it is started and protected, calculations (slip, torque) as equations, and what was observed.
+
+Choose the photos by the item: the nameplate of THIS motor, THIS motor installed. Never put a photo of a
+different machine in an item's profile. Do not repeat the same photos elsewhere unless they support a
+different point.
+
 ## Images the student gives you
 
 The student keeps their images in a folder in Downloads (their own, or the default `KDocs Images`). If

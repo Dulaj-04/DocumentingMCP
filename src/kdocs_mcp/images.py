@@ -238,6 +238,15 @@ def _paragraphs(lines: list[str], start: int, end: int) -> list[tuple[int, str]]
     return out
 
 
+def referenced_images(markdown: str) -> set[str]:
+    """Every image file the report uses: ![..](file) and the images of ```profile blocks."""
+    found = set(re.findall(r"!\[[^\]]*\]\(([^)\s]+)", markdown))
+    for block in re.findall(r"```\s*\{?\.?(?:profile|equipment)[^\n]*\n(.*?)```", markdown, re.S):
+        found.update(m.strip().strip("'\"") for m in re.findall(r"file:\s*([^\n#]+)", block))
+        found.update(m.strip().strip("'\"") for m in re.findall(r"^\s*-\s+([^\s:]+\.(?:png|jpe?g|gif|bmp|tiff?))\s*$", block, re.M | re.I))
+    return found
+
+
 def suggest_placement(body_markdown: str, project: str = "", max_per_section: int = 3) -> dict:
     """Match library images to the report's sections by what each image shows and what each section says.
 
@@ -248,7 +257,7 @@ def suggest_placement(body_markdown: str, project: str = "", max_per_section: in
     from . import project as proj
 
     lib_images = list_library(project).get("images", [])
-    used = set(re.findall(r"!\[[^\]]*\]\(([^)\s]+)", body_markdown))
+    used = referenced_images(body_markdown)
     used_names = {Path(u).name for u in used}
     lines = body_markdown.splitlines()
     heads = proj.sections(body_markdown)

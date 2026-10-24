@@ -77,6 +77,7 @@ VISUAL_CLASSES = {
     "diagram": "diagram", "mermaid": "diagram", "flowchart": "diagram", "block": "diagram",
     "circuit": "circuit", "schematic": "circuit", "logic": "circuit",
 }
+PROFILE_CLASSES = {"profile", "equipment"}
 _CROSSREF = re.compile(r"^(fig|tbl|tab|eq):", re.I)
 _REFS_HEADING = re.compile(r"^" + _SECTION_NO + r"(references|bibliography|reference list)$", re.I)
 
@@ -196,6 +197,41 @@ def _set_col_widths(table, widths_in) -> None:
         layout = OxmlElement("w:tblLayout")
         layout.set(qn("w:type"), "fixed")
         tblpr.append(layout)
+
+
+def _profile_spec(text: str) -> dict:
+    """Read a ```profile block: the item's data as points and its photos."""
+    import yaml
+
+    try:
+        raw = yaml.safe_load(text) or {}
+    except Exception as exc:
+        return {"error": str(exc), "data": [], "images": [], "caption": "", "label": "", "layout": "auto", "note": ""}
+    if not isinstance(raw, dict):
+        raw = {}
+    data = raw.get("data") or []
+    if isinstance(data, dict):
+        data = list(data.items())
+    else:
+        pairs = []
+        for item in data:
+            if isinstance(item, dict):
+                pairs += list(item.items())
+            elif isinstance(item, str) and ":" in item:
+                k, v = item.split(":", 1)
+                pairs.append((k.strip(), v.strip()))
+            elif isinstance(item, str):
+                pairs.append(("", item))
+        data = pairs
+    images = []
+    for im in raw.get("images") or []:
+        if isinstance(im, str):
+            images.append({"file": im, "caption": ""})
+        elif isinstance(im, dict) and im.get("file"):
+            images.append({"file": str(im["file"]), "caption": str(im.get("caption") or "")})
+    return {"data": [(str(k), "" if v is None else str(v)) for k, v in data], "images": images[:3],
+            "caption": str(raw.get("caption") or ""), "label": str(raw.get("label") or "").removeprefix("fig:"),
+            "layout": str(raw.get("layout") or "auto").lower(), "note": str(raw.get("source") or raw.get("note") or ""), "error": ""}
 
 
 def _no_borders(table) -> None:
@@ -625,6 +661,12 @@ class ReportBuilder:
                 elif _is_image_row(meaningful):
                     first = meaningful[0]["c"][0]
                     figure(node, bool(dict(first[2]).get("caption")), first[0])
+            elif t == "CodeBlock" and any(c.lower() in PROFILE_CLASSES for c in node["c"][0][1]):
+                spec = _profile_spec(node["c"][1])
+                if spec["images"]:
+                    ident = node["c"][0][0] or (f"fig:{spec['label']}" if spec["label"] else "")
+                    node["_ident"] = ident
+                    figure(node, bool(spec["caption"]), ident)
             elif t == "CodeBlock":
                 attr = node["c"][0]
                 if any(c.lower() in VISUAL_CLASSES for c in attr[1]):
@@ -821,6 +863,8 @@ class ReportBuilder:
             self._table(container, c, number=b.get("_tab_no"))
         elif t == "Figure":
             self._figure(container, c)
+        elif t == "CodeBlock" and any(cl.lower() in PROFILE_CLASSES for cl in c[0][1]):
+            self._profile(container, b)
         elif t == "CodeBlock":
             if any(cl.lower() in VISUAL_CLASSES for cl in c[0][1]):
                 self._visual(container, b)
@@ -1336,6 +1380,100 @@ class ReportBuilder:
         else:
             spacer = container.add_paragraph()
             spacer.paragraph_format.space_after = Pt(4)
+
+    def _profile(self, container, block) -> None:
+        """One named piece of equipment: its data as points, its photos right there, as one figure.
+
+        layout: beside (data on the left, photo on the right), below (photos in a row under the data), or
+        auto (beside for a single photo, below for two or three)."""
+        spec = _profile_spec(block["c"][1])
+        if spec["error"]:
+            self.warnings.append(f"Could not read a profile block: {spec['error']}")
+            return
+        md = "\n".join(f"- **{k}:** {v}" if k else f"- {v}" for k, v in spec["data"])
+        data_blocks = []
+        if md:
+            data_blocks = json.loads(pypandoc.convert_text(md, "json", format="markdown+tex_math_dollars"))["blocks"]
+        number = block.get("_fig_no")
+        label = block.get("_ident", "")
+        layout = spec["layout"]
+        if layout == "auto":
+            layout = "beside" if len(spec["images"]) == 1 else "below"
+        if not spec["images"]:
+            for blk in data_blocks:
+                self._block(container, blk, None)
+            return
+
+        def node(im, idx):
+            alt = im["caption"]
+            if len(spec["images"]) > 1 and layout == "below":
+                alt = f"({chr(97 + idx)}) {alt}".strip()
+            kvs = [["caption", spec["caption"]]] if idx == 0 and spec["caption"] else []
+            words = [w for w in alt.split(" ") if w]
+            inl = []
+            for k, w in enumerate(words):
+                if k:
+                    inl.append({"t": "Space"})
+                inl.append({"t": "Str", "c": w})
+            return {"t": "Image", "c": [[label if idx == 0 else "", [], kvs], inl, [im["file"], ""]]}
+
+        nodes = [node(im, i) for i, im in enumerate(spec["images"])]
+        if layout == "beside":
+            from .images import fit_size
+
+            table = container.add_table(rows=1, cols=2)
+            table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            left_w, right_w = CONTENT_W * 0.55, CONTENT_W * 0.45
+            _set_col_widths(table, [left_w, right_w])
+            left, right = table.cell(0, 0), table.cell(0, 1)
+            left.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            right.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            for blk in data_blocks:
+                self._block(left, blk, None)
+            if left.paragraphs and not left.paragraphs[0].text and len(left.paragraphs) > 1:
+                left._tc.remove(left.paragraphs[0]._p)
+            usable = right_w - 0.22
+            first = True
+            for n in nodes:
+                path = self._resolve(n["c"][2][0])
+                p = right.paragraphs[0] if first else right.add_paragraph()
+                first = False
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if not path:
+                    r = p.add_run(f"[Missing image: {n['c'][2][0]}]")
+                    r.italic, r.font.color.rgb = True, RGBColor(0xC0, 0, 0)
+                    continue
+                with PILImage.open(path) as im_:
+                    w_px, h_px = im_.size
+                w_in, notes = fit_size(w_px, h_px, path.suffix, usable)
+                w_in = min(w_in, usable, 3.6 * w_px / h_px / max(len(nodes), 1))
+                for note in notes:
+                    self.warnings.append(f"{path.name}: {note}")
+                p.add_run().add_picture(str(path), width=Inches(w_in))
+                if _plain_text(n["c"][1]).strip():
+                    cp = right.add_paragraph()
+                    cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    cp.paragraph_format.space_after = Pt(4)
+                    self._inlines(cp, n["c"][1], {})
+                    for run in cp.runs:
+                        run.font.size = Pt(self.s.body_size - 1)
+            _no_borders(table)
+            if number is not None:
+                self._caption(container, "Figure", number, label, spec["caption"])
+            else:
+                container.add_paragraph().paragraph_format.space_after = Pt(2)
+        else:
+            for blk in data_blocks:
+                self._block(container, blk, None)
+            if len(nodes) == 1:
+                self._figure_image(container, nodes[0]["c"], caption=nodes[0]["c"][1] if number is None else spec["caption"], number=number)
+            else:
+                self._image_row(container, nodes, number)
+        if spec["note"]:
+            np_ = container.add_paragraph()
+            np_.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r = np_.add_run(spec["note"])
+            r.italic, r.font.size = True, Pt(self.s.body_size - 2)
 
     def _caption(self, container, kind: str, number: int, label: str, inlines) -> None:
         """'Figure 3: text' with a live SEQ number and a bookmark that @fig:x cross-references point to."""

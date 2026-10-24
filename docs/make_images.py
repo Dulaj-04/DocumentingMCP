@@ -375,6 +375,70 @@ def image_confirmation() -> None:
     save(card(Image.open(WORK / "imgconfirm.png"), 520), "image-confirmation.png")
 
 
+def _nameplate(path: Path) -> Path:
+    """A made-up motor nameplate (placeholder data) so the README can show a profile."""
+    im = Image.new("RGB", (1500, 1000), (214, 216, 220))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([20, 20, 1480, 980], 30, outline=(90, 90, 90), width=10)
+    head, body = font(64, bold=True), font(46)
+    d.text((70, 60), "3~ INDUCTION MOTOR", fill=(30, 30, 30), font=head)
+    rows = ["TYPE  AB-500   POLES 10", "1120 kW    6600 V    50 Hz", "134 A    594 r/min    S1",
+            "INS. CL. F    IP55    PF 0.77", "BEARINGS 6330 / 6334"]
+    for k, r in enumerate(rows):
+        d.text((70, 200 + k * 140), r, fill=(40, 40, 40), font=body)
+    im.save(path)
+    return path
+
+
+def profile_example() -> None:
+    os.environ["KDOCS_MCP_IMAGES"] = str(WORK / "Downloads" / "KDocs Images")
+    plate = _nameplate(WORK / "plate.jpg")
+    motor = _labelled((1600, 1200), (196, 210, 226), "Installed motor\n(photo)", "motor.jpg")
+    panel = _labelled((1600, 1200), (226, 214, 198), "Feeder panel\n(photo)", "panel.jpg")
+    server.import_images([str(plate), str(motor), str(panel)], names=["cw-motor-nameplate", "bfp-motor", "bfp-feeder-panel"])
+    md = """# Industrial Motor Applications
+
+## Main cooling water pump motor (10-pole, 1120 kW)
+
+```profile
+label: cw
+caption: Main cooling water pump motor
+data:
+  - Type: three-phase squirrel-cage induction motor
+  - Rated output: 1120 kW
+  - Supply: 6.6 kV, 50 Hz, 134 A
+  - Speed: 594 rpm (10 poles)
+  - Duty and insulation: S1, class F, IP55
+images:
+  - file: cw-motor-nameplate.jpg
+    caption: Nameplate
+```
+
+As @fig:cw shows, this is a 10-pole machine, so it runs at about 594 rpm with a high torque. That suits a
+large, slow cooling water pump, and the plant runs three of them.
+
+## Boiler feed pump motor (2-pole, 2300 kW)
+
+```profile
+label: bfp
+caption: Boiler feed pump motor and its feeder
+data:
+  - Rated output: 2300 kW
+  - Supply: 6.6 kV, 50 Hz, 228 A
+  - Speed: 2975 rpm (2 poles)
+images:
+  - file: bfp-motor.jpg
+    caption: Motor with its air-water cooler
+  - file: bfp-feeder-panel.jpg
+    caption: Feeder panel
+```
+"""
+    res = server.create_document(template="assignment", title="Profiles", filename="profiles", skip_planning=True, body_markdown=md)
+    page = Image.open(pages(res["docx"], "profiles")[1])
+    w, h = page.size
+    save(card(page.crop((0, int(h * 0.04), w, int(h * 0.93))), 700), "equipment-profile.png")
+
+
 def _labelled(size, colour, text, name):
     im = Image.new("RGB", size, colour)
     d = ImageDraw.Draw(im)
@@ -426,4 +490,5 @@ if __name__ == "__main__":
     image_workflow()
     image_confirmation()
     image_sizing()
+    profile_example()
     shutil.rmtree(WORK, ignore_errors=True)

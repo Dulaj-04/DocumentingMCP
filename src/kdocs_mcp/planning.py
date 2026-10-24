@@ -48,6 +48,7 @@ REQUIREMENTS = [
     ("ieee_references", "Cite sources with IEEE references [1], [2] ...", True),
     ("include_code", "Include program code (labs)", False),
     ("include_photos_screenshots", "Include my photos / screenshots", False),
+    ("equipment_profiles", "One sub-section per named item (e.g. each motor): its data as points, its photos right there, then the discussion", False),
     ("student_voice", "Write in a plain undergraduate voice (no AI-sounding wording)", True),
     ("my_input_sections", "Ask for my own input (results, problems, conclusions) before writing the sections I tick", True),
     ("similarity_check", "Run a similarity check against the notes before finishing", True),

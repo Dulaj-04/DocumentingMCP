@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.7.0
+
+**Equipment profiles**
+- New ```profile block for reports about specific equipment: an item's data as points and its photos
+  right there (one photo beside the data, two or three in a row under it), as one numbered figure that
+  the text can refer to. Optional: a planning checklist item and a writing-guide section say when to
+  use it.
+- Images used in profiles count as used for placement suggestions, crowding and page estimates.
+
+**Making sure images are used**
+- The pre-submission check reports an error when the plan asks for your photos but the report has
+  none, and a warning when profiles were asked for but not used.
+- It also flags internal photo codes in the text ("photograph P74", "IMG_2041"). A reader can't see
+  these, so the photo should be a numbered figure.
+
 ## 1.6.0
 
 **Several images at once**
